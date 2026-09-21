@@ -77,7 +77,7 @@ def test_context_manifest_records_the_actual_selected_surface(agent_factory):
     assert manifest.fact_ids
     assert manifest.evidence_ids
     assert manifest.need_ids
-    assert "KB_search" not in manifest.exposed_tools
+    assert "KB_search" in manifest.exposed_tools
     assert manifest.skills == ["constraint-aware-recommendation"]
     evidence = next(item for item in state.evidence if item.evidence_id in manifest.evidence_ids)
     payload = next(item for item in state.raw_payloads if item.payload_id == evidence.payload_ref)

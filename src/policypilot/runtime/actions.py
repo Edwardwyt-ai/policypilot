@@ -17,7 +17,12 @@ from policypilot.state import (
     PolicyPilotState,
     ToolCallRecord,
 )
-from policypilot.tool_policy import is_knowledge_tool, tool_signature
+from policypilot.taxonomy import canonicalize_aspect
+from policypilot.tool_policy import (
+    is_decision_retrieval_tool,
+    is_knowledge_tool,
+    tool_signature,
+)
 from tau2.data_model.message import AssistantMessage, Message, ToolCall
 
 
@@ -181,9 +186,147 @@ def call_decision(
     return None
 
 
+def _bind_decision_retrieval(
+    host: ActionHost,
+    call: ToolCall,
+    state: PolicyPilotState,
+) -> str | None:
+    """Bind a Decision-authored KB lookup without making old coverage a gate."""
+    query = str((call.arguments or {}).get("query") or "").strip()
+    if not query:
+        return None
+    target = state.goal.target or "banking_product"
+    aspect = canonicalize_aspect(query, entity=target, scope=target) or "product_terms"
+    canonical_candidate = NeedCandidate(
+        entity=target,
+        aspect=aspect,
+        scope=target,
+        source="POLICY",
+        criticality="CRITICAL",
+        reason_code="required_action_blocked",
+        query_terms=[query],
+        provenance="decision_direct",
+    )
+    semantic_key = host.need_registry.semantic_key(canonical_candidate, state)
+    need = next(
+        (
+            item
+            for item in state.information_needs
+            if item.semantic_key == semantic_key
+        ),
+        None,
+    )
+
+    binding = "canonical"
+    if need is not None and (
+        need.retrieval_attempts
+        >= host.config.max_retrieval_attempts_per_semantic_need
+    ):
+        # Prior broad coverage must not prevent a distinct corrective lookup.
+        # Give the query its own bounded lifecycle while the task-wide budget
+        # remains the ultimate cost limit.
+        query_digest = hashlib.sha1(
+            " ".join(query.casefold().split()).encode("utf-8")
+        ).hexdigest()[:12]
+        canonical_candidate = canonical_candidate.model_copy(
+            update={"scope": f"{target}:decision:{query_digest}"}
+        )
+        semantic_key = host.need_registry.semantic_key(canonical_candidate, state)
+        need = next(
+            (
+                item
+                for item in state.information_needs
+                if item.semantic_key == semantic_key
+            ),
+            None,
+        )
+        binding = "query_scoped"
+
+    if need is None:
+        host.need_registry.register_many(
+            state, [canonical_candidate], turn=len(state.messages)
+        )
+        need = next(
+            (
+                item
+                for item in state.information_needs
+                if item.semantic_key == semantic_key
+            ),
+            None,
+        )
+    if need is None:
+        return None
+
+    # Direct Decision retrieval is an explicit signal that prior coverage was
+    # insufficient. Reopen the canonical need instead of creating a parallel one.
+    need.status = "OPEN"
+    need.critical = True
+    need.blocking = True
+    need.actionable = True
+    need.exhausted = False
+    need.coverage = "PARTIAL" if need.evidence_refs else None
+    need.resolved_by_fact_id = None
+    need.resolved_at = None
+    need.reason = "decision_requested_retrieval"
+    need.query_terms = list(dict.fromkeys([*need.query_terms, query]))[-4:]
+    need.updated_turn = len(state.messages)
+    need.retrieval_attempts += 1
+    need.acquisition_count += 1
+    state.control.retrieval_events.append(
+        {
+            "turn": len(state.messages),
+            "tool_call_id": call.id,
+            "need_id": need.id,
+            "semantic_need_key": need.semantic_key,
+            "entity": need.entity,
+            "aspect": need.aspect,
+            "aspect_provenance": need.aspect_provenance,
+            "scope": need.scope,
+            "source": "POLICY",
+            "status": "REQUESTED",
+            "attempt": need.retrieval_attempts,
+            "query": query,
+            "candidate_documents": [],
+            "coverage": None,
+            "matched_need_ids": [],
+            "partial_need_ids": [],
+            "why_again": "Decision identified insufficient policy evidence",
+            "origin": "decision",
+            "binding": binding,
+        }
+    )
+    state.control.retrieval_query_history.append(
+        {"turn": len(state.messages), "need_id": need.id, "query": query}
+    )
+    return need.id
+
+
+def _normalized_retrieval_query(call: ToolCall) -> str:
+    query = str((call.arguments or {}).get("query") or "")
+    return " ".join(query.casefold().split())
+
+
+def _is_repeated_decision_query(call: ToolCall, state: PolicyPilotState) -> bool:
+    normalized = _normalized_retrieval_query(call)
+    return bool(normalized) and any(
+        " ".join(str(item.get("query") or "").casefold().split()) == normalized
+        for item in state.control.retrieval_query_history
+    )
+
+
 def validate_proposal(
     host: ActionHost, message: AssistantMessage, state: PolicyPilotState
 ) -> ValidationResult:
+    if (
+        len(message.tool_calls or []) > 1
+        and all(
+            is_decision_retrieval_tool(call.name)
+            for call in message.tool_calls or []
+        )
+    ):
+        # Keep Decision retrieval sequential so each new query can use the
+        # evidence returned by the previous one and budgets remain predictable.
+        message.tool_calls = [message.tool_calls[0]]
     proposed_action = message.model_dump(mode="json", exclude_none=True)
     if not message.tool_calls:
         error = host.policy_engine.check(message, state)
@@ -217,16 +360,6 @@ def validate_proposal(
             proposed_action=proposed_action,
         )
     for call in message.tool_calls:
-        if is_knowledge_tool(call.name) and not any(
-            item.get("tool_call_id") == call.id and item.get("status") == "REQUESTED"
-            for item in state.control.retrieval_events
-        ):
-            return ValidationResult(
-                allowed=False,
-                reason_code="KB_UNBOUND",
-                details="Knowledge lookup must originate from an unresolved registered policy need.",
-                proposed_action=proposed_action,
-            )
         if call.name not in host.guard.tools_by_name:
             return ValidationResult(
                 allowed=False,
@@ -252,6 +385,37 @@ def validate_proposal(
                 details=error,
                 proposed_action={**proposed_action, "missing_fields": missing},
             )
+    for call in message.tool_calls:
+        if is_knowledge_tool(call.name) and not any(
+            item.get("tool_call_id") == call.id and item.get("status") == "REQUESTED"
+            for item in state.control.retrieval_events
+        ):
+            direct_allowed = host.config.decision_knowledge_tools_enabled and (
+                is_decision_retrieval_tool(call.name)
+            )
+            if not direct_allowed:
+                return ValidationResult(
+                    allowed=False,
+                    reason_code="KB_UNBOUND",
+                    details=(
+                        "Knowledge lookup must originate from an unresolved "
+                        "registered policy need or an authorized Decision lookup."
+                    ),
+                    proposed_action=proposed_action,
+                )
+            if _is_repeated_decision_query(call, state):
+                control.duplicate_call_count += 1
+                return ValidationResult(
+                    allowed=False,
+                    error_type=PolicyPilotErrorType.DUPLICATE_TOOL_CALL,
+                    reason_code="DUPLICATE_RETRIEVAL_QUERY",
+                    details="Repeated Decision knowledge query blocked.",
+                    proposed_action=proposed_action,
+                )
+            # Binding is provenance and budgeting metadata, not permission for
+            # a read-only lookup. A full Need registry must not become a safety
+            # denial for an otherwise valid Decision query.
+            _bind_decision_retrieval(host, call, state)
         classification = host.guard.classify(call.name)
         signature = tool_signature(call.name, call.arguments)
         if classification == "mutation":
@@ -334,6 +498,17 @@ def record_valid_tool_calls(
 ) -> None:
     control = state.control
     for call in message.tool_calls or []:
+        bound_need_id = need_id
+        if bound_need_id is None and is_knowledge_tool(call.name):
+            event = next(
+                (
+                    item
+                    for item in reversed(control.retrieval_events)
+                    if item.get("tool_call_id") == call.id
+                ),
+                None,
+            )
+            bound_need_id = event.get("need_id") if event else None
         signature = tool_signature(call.name, call.arguments)
         classification = host.guard.classify(call.name)
         state.tool_history.append(
@@ -344,13 +519,18 @@ def record_valid_tool_calls(
                 turn_index=len(state.messages),
                 tool_call_id=call.id,
                 classification=classification,
-                need_id=need_id,
+                need_id=bound_need_id,
             )
         )
         control.signature_versions[signature] = control.observation_version
         control.tool_call_count += 1
         bound_need = next(
-            (item for item in state.information_needs if item.id == need_id), None
+            (
+                item
+                for item in state.information_needs
+                if item.id == bound_need_id
+            ),
+            None,
         )
         if bound_need is not None and not is_knowledge_tool(call.name):
             bound_need.acquisition_count += 1
@@ -358,7 +538,7 @@ def record_valid_tool_calls(
             {
                 "turn": len(state.messages),
                 "tool_call_id": call.id,
-                "need_id": need_id,
+                "need_id": bound_need_id,
                 "semantic_key": bound_need.semantic_key if bound_need else None,
                 "source": bound_need.source if bound_need else "DECISION",
                 "acquisition_type": classification,

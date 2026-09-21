@@ -14,6 +14,7 @@ from tau2.data_model.message import ToolCall
 from tau2.environment.tool import Tool
 
 KNOWLEDGE_TOOL_NAMES = {"KB_search", "KB_search_bm25", "KB_search_dense", "grep", "shell"}
+DECISION_RETRIEVAL_TOOL_NAMES = {"KB_search", "KB_search_bm25", "KB_search_dense"}
 
 
 def canonicalize_arguments(arguments: dict[str, Any]) -> str:
@@ -29,6 +30,11 @@ def tool_signature(tool_name: str, arguments: dict[str, Any]) -> str:
 def is_knowledge_tool(tool_name: str) -> bool:
     """Return whether a tool is one of tau2's knowledge retrieval tools."""
     return tool_name in KNOWLEDGE_TOOL_NAMES
+
+
+def is_decision_retrieval_tool(tool_name: str) -> bool:
+    """Return whether Decision may directly request this read-only KB tool."""
+    return tool_name in DECISION_RETRIEVAL_TOOL_NAMES
 
 
 def classify_tool(tool: Tool) -> str:
@@ -148,20 +154,21 @@ class ToolCallGuard:
 
 
 class ToolExposureResolver:
-    """Select the narrow tool surface visible to the main Decision model.
+    """Select the bounded tool surface visible to the main Decision model."""
 
-    Need acquisition nodes continue to use the complete registry.  In particular,
-    policy retrieval is never delegated to the main model.
-    """
-
-    def __init__(self, tools: list[Tool]):
+    def __init__(self, tools: list[Tool], *, expose_knowledge: bool = True):
         self.tools = tuple(tools)
+        self.expose_knowledge = expose_knowledge
 
     def for_decision(self, state: Any) -> list[Tool]:
         exposed: list[Tool] = []
         for tool in self.tools:
             classification = classify_tool(tool)
-            if classification in {"knowledge", "transaction_read"}:
+            if classification == "knowledge":
+                if self.expose_knowledge and is_decision_retrieval_tool(tool.name):
+                    exposed.append(tool)
+                continue
+            if classification == "transaction_read":
                 continue
             if (
                 classification == "mutation"

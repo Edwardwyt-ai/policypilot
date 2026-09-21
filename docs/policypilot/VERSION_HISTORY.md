@@ -21,6 +21,83 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Bounded Decision Retrieval Authority V1
+
+- Date: 2026-09-21
+- Status: implemented and full-unit-verified; benchmark rerun pending
+- Parent: Unreleased - Layered Agent Package Structure V1
+
+### Architecture
+
+- Relaxed the read-only Decision retrieval gate: a valid, non-duplicate KB
+  query no longer requires a pre-existing OPEN Policy Need. Canonical Needs are
+  still reused when possible; distinct corrective queries receive a bounded
+  query-scoped Need after the canonical attempt limit is reached.
+- Kept transactional reads and mutations under their existing strict authority
+  checks. Task-wide retrieval budgets, one-query-per-turn normalization, tool
+  schema validation, and cross-turn normalized-query deduplication remain in
+  force.
+- Exposed only the read-only `KB_search`, `KB_search_bm25`, and
+  `KB_search_dense` capabilities to the main Decision LLM. Transactional reads,
+  mutations, `grep`, and `shell` retain their existing authority boundaries.
+- Added deterministic binding for Decision-authored retrieval calls. A direct
+  lookup reuses and reopens the canonical Policy Need when prior evidence is
+  insufficient, rather than creating parallel state.
+- Direct retrieval remains subject to tool-schema validation, duplicate checks,
+  per-goal retrieval budgets, per-Need attempt limits, and the existing tau2
+  external tool-execution boundary.
+- Added `decision_knowledge_tools_enabled` as a strict-mode compatibility switch.
+
+### Behavior
+
+- Added `scripts/test_policypilot.sh` with explicit `unit` and `eval` modes.
+  The free verification path is the default; API-backed evaluation must be
+  requested explicitly and receives a timestamped output directory.
+- Decision may now request a fresh KB lookup when supplied evidence is missing,
+  off-scope, or insufficient for a recommendation or negative conclusion.
+- Decision-authored retrievals carry `origin=decision`, a canonical Need ID,
+  query history, acquisition history, and normal evidence/coverage processing.
+- Multiple Decision-authored KB calls in one response are normalized to the
+  first call. Later retrievals are reconsidered on the next turn using the new
+  evidence, keeping authority and cost bounded.
+- Live banking facts and transactional reads still require registered TOOL
+  Needs. Mutation preconditions and mutation verification behavior are unchanged.
+
+### Triggering Evaluation
+
+- Artifact: `data/simulations/vscode_task001_seed0_20260921_133718`.
+- Task: `task_001`; Reward `0`; DB Check `false`; Required Actions `0/1`;
+  retrieval count `1`; tool calls `1`; termination `user_stop`.
+- Initial query: `card cashback rewards points rate cash back rewards rate`.
+- Two Decision-authored corrective KB queries were blocked as `KB_UNBOUND`
+  after broad coverage incorrectly resolved the critical Policy Needs.
+- Average context: `16,831.5` chars; total tokens: `21,156` input and `24,504`
+  output; total cost: `$0.108666224`; end-to-end latency: `313.196805s`.
+
+### Verification Evidence
+
+- Relaxed Decision retrieval Guard targeted tests: `14 passed`, including
+  query-scoped corrective binding and cross-turn duplicate-query blocking.
+- Full regression after the Guard relaxation: `99 passed`; Ruff and PolicyPilot
+  compile checks passed. No API-backed benchmark was run.
+- Bash helper help output and missing-task guard: passed.
+- Bash helper `unit` mode: `97 passed`, two unrelated host warnings; Ruff and
+  PolicyPilot compile checks passed.
+- Final targeted Guard tests: `12 passed`, two unrelated host warnings, 0.15s.
+- Full PolicyPilot regression: `97 passed`, two unrelated host warnings, 5.21s.
+- Ruff for `src/policypilot` and `tests/policypilot`: passed.
+- PolicyPilot compile check: passed.
+- API-backed task rerun: not run.
+
+### Known Issues And Next Decision
+
+- Coverage matching remains broad and can still mark mixed retrieval results as
+  complete. Direct Decision retrieval provides a bounded escape hatch but does
+  not replace the planned coverage-quality correction.
+- Rerun `task_001` only after explicit approval because it incurs external-model
+  cost; compare retrieval count, queries, Guard blocks, action completion,
+  context, tokens/cost, and latency against the triggering artifact.
+
 ## Unreleased - Layered Agent Package Structure V1
 
 - Date: 2026-09-14

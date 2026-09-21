@@ -140,7 +140,10 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
             else None
         )
         self.guard = ToolCallGuard(tools, self.budget)
-        self.tool_exposure = ToolExposureResolver(tools)
+        self.tool_exposure = ToolExposureResolver(
+            tools,
+            expose_knowledge=self.config.decision_knowledge_tools_enabled,
+        )
         self.source_resolver = source_resolver
         self.need_resolver = NeedResolver(self.config)
 

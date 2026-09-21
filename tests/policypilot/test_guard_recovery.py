@@ -23,16 +23,168 @@ def tool_message(name: str, arguments: dict, call_id: str = "call-1"):
     )
 
 
-def test_main_decision_never_sees_knowledge_or_unbound_read_tools(agent_factory):
+def test_main_decision_sees_bounded_knowledge_but_not_transaction_reads(agent_factory):
     agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
     state = agent.get_init_state()
     state.intent = "TRANSACTIONAL"
 
     exposed = {tool.name for tool in agent._decision_tools(state)}
 
-    assert "KB_search" not in exposed
+    assert "KB_search" in exposed
     assert "read_account" not in exposed
     assert "mutate_account" in exposed
+
+
+def test_main_decision_knowledge_permission_can_be_disabled(agent_factory):
+    agent = agent_factory(
+        config=PolicyPilotConfig(
+            memory_enabled=False,
+            decision_knowledge_tools_enabled=False,
+        )
+    )
+
+    exposed = {tool.name for tool in agent._decision_tools(agent.get_init_state())}
+
+    assert "KB_search" not in exposed
+
+
+def test_decision_retrieval_reopens_and_binds_resolved_need(agent_factory):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.goal.target = "card"
+    need = InformationNeed(
+        id="policy-card-rewards",
+        semantic_key="POLICY|card|rewards|card",
+        entity="card",
+        aspect="rewards",
+        scope="card",
+        source="POLICY",
+        status="RESOLVED",
+        reason="ranking_requires_reward_rates",
+        retrieval_attempts=1,
+        evidence_refs=["weak-evidence"],
+        coverage="MATCH",
+    )
+    state.information_needs.append(need)
+    proposal = tool_message(
+        "KB_search",
+        {"query": "best personal card cashback for everyday spending"},
+        call_id="decision-kb-1",
+    )
+
+    result = validate_proposal(agent, proposal, state)
+    agent._record_valid_tool_calls(proposal, state)
+
+    assert result.allowed
+    assert need.status == "OPEN"
+    assert need.blocking
+    assert need.coverage == "PARTIAL"
+    assert need.retrieval_attempts == 2
+    assert state.control.retrieval_events[-1]["origin"] == "decision"
+    assert state.control.retrieval_events[-1]["need_id"] == need.id
+    assert state.tool_history[-1].need_id == need.id
+
+
+def test_decision_retrieval_uses_query_scoped_need_after_canonical_limit(
+    agent_factory,
+):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.goal.target = "card"
+    canonical = InformationNeed(
+        id="policy-card-rewards",
+        semantic_key="POLICY|card|rewards|card",
+        entity="card",
+        aspect="rewards",
+        scope="card",
+        source="POLICY",
+        status="RESOLVED",
+        reason="ranking_requires_reward_rates",
+        retrieval_attempts=2,
+        evidence_refs=["broad-evidence"],
+        coverage="MATCH",
+    )
+    state.information_needs.append(canonical)
+    proposal = tool_message(
+        "KB_search",
+        {"query": "compare personal card cashback rates"},
+        call_id="decision-kb-corrective",
+    )
+
+    result = validate_proposal(agent, proposal, state)
+    agent._record_valid_tool_calls(proposal, state)
+
+    assert result.allowed
+    assert canonical.status == "RESOLVED"
+    event = state.control.retrieval_events[-1]
+    assert event["binding"] == "query_scoped"
+    assert event["origin"] == "decision"
+    assert event["need_id"] != canonical.id
+    scoped = next(
+        item for item in state.information_needs if item.id == event["need_id"]
+    )
+    assert scoped.status == "OPEN"
+    assert scoped.retrieval_attempts == 1
+    assert state.tool_history[-1].need_id == scoped.id
+
+
+def test_decision_retrieval_blocks_same_query_across_observations(agent_factory):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.goal.target = "card"
+    first = tool_message(
+        "KB_search",
+        {"query": "personal card cashback comparison"},
+        call_id="decision-kb-first",
+    )
+    assert validate_proposal(agent, first, state).allowed
+    agent._record_valid_tool_calls(first, state)
+    state.control.observation_version += 1
+
+    repeated = tool_message(
+        "KB_search",
+        {"query": "  PERSONAL   card cashback comparison  "},
+        call_id="decision-kb-repeated",
+    )
+    result = validate_proposal(agent, repeated, state)
+
+    assert not result.allowed
+    assert result.reason_code == "DUPLICATE_RETRIEVAL_QUERY"
+    assert state.control.duplicate_call_count == 1
+    assert len(state.control.retrieval_events) == 1
+
+
+def test_decision_retrieval_executes_one_query_per_turn(agent_factory):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.goal.target = "card"
+    proposal = AssistantMessage(
+        role="assistant",
+        tool_calls=[
+            ToolCall(
+                id="decision-kb-1",
+                name="KB_search",
+                arguments={
+                    "query": "best personal card cashback for everyday spending"
+                },
+                requestor="assistant",
+            ),
+            ToolCall(
+                id="decision-kb-2",
+                name="KB_search",
+                arguments={"query": "credit card rewards comparison"},
+                requestor="assistant",
+            ),
+        ],
+    )
+
+    result = validate_proposal(agent, proposal, state)
+
+    assert result.allowed
+    assert [call.id for call in proposal.tool_calls] == ["decision-kb-1"]
+    assert [event["tool_call_id"] for event in state.control.retrieval_events] == [
+        "decision-kb-1"
+    ]
 
 
 def test_policy_need_uses_formal_retrieval_node(agent_factory):
@@ -91,7 +243,11 @@ def test_duplicate_block_does_not_create_need(agent_factory):
 
 
 def test_guard_recovery_attempt_limit_safe_stops(agent_factory):
-    config = PolicyPilotConfig(memory_enabled=False, max_guard_recovery_attempts=0)
+    config = PolicyPilotConfig(
+        memory_enabled=False,
+        max_guard_recovery_attempts=0,
+        decision_knowledge_tools_enabled=False,
+    )
     agent = agent_factory(config=config)
     state = agent.get_init_state()
     result = validate_proposal(
@@ -181,7 +337,12 @@ def test_mutation_exposed_when_dialogue_and_authoritative_facts_satisfy_precondi
 
 
 def test_guard_recovery_preserves_canonical_gap_from_blocked_query(agent_factory):
-    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    agent = agent_factory(
+        config=PolicyPilotConfig(
+            memory_enabled=False,
+            decision_knowledge_tools_enabled=False,
+        )
+    )
     state = agent.get_init_state()
     state.goal.target = "card"
     result = validate_proposal(

@@ -23,6 +23,7 @@ class PolicyPilotConfig:
     max_retrieval_rewrite_attempts: int = 1
     max_goal_retrieval_calls: int = 6
     max_retrieval_attempts_per_semantic_need: int = 2
+    decision_knowledge_tools_enabled: bool = True
     max_no_progress_turns: int = 3
     max_graph_steps: int = 20
     light_model: str | None = None
