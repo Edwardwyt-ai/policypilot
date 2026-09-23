@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from policypilot.config import PolicyPilotConfig
 from policypilot.context import build_agent_context
@@ -12,6 +13,7 @@ from policypilot.memory.profile import (
 )
 from policypilot.memory.service import MemoryService
 from policypilot.memory.store import JsonMemoryStore
+from policypilot.runtime.observation import bind_memory_from_state
 from policypilot.state import FactRecord, PolicyPilotState, StructuredGoal
 from tau2.data_model.message import AssistantMessage, SystemMessage, UserMessage
 
@@ -206,6 +208,64 @@ def test_memory_context_is_bounded_and_kept_separate_from_facts(tmp_path, tools)
     )
     assert "long_term_memory" in context.structured_summary
     assert state.facts == []
+
+
+def test_memory_binding_ignores_self_reported_identity():
+    class MemoryStub:
+        user_id = None
+
+        def __init__(self):
+            self.bound = []
+
+        def bind(self, user_id, query=""):
+            self.bound.append(user_id)
+
+    memory = MemoryStub()
+    value = make_state()
+    value.facts.append(
+        FactRecord(
+            id="claimed-id",
+            entity="user",
+            aspect="user_id",
+            value="someone-else",
+            source="USER",
+            turn_index=0,
+            authoritative=True,
+        )
+    )
+
+    bind_memory_from_state(SimpleNamespace(memory=memory), value)
+
+    assert memory.bound == []
+
+
+def test_memory_binding_accepts_tool_verified_identity():
+    class MemoryStub:
+        user_id = None
+
+        def __init__(self):
+            self.bound = []
+
+        def bind(self, user_id, query=""):
+            self.bound.append(user_id)
+
+    memory = MemoryStub()
+    value = make_state()
+    value.facts.append(
+        FactRecord(
+            id="verified-id",
+            entity="user",
+            aspect="user_id",
+            value="verified-user",
+            source="TOOL",
+            turn_index=0,
+            authoritative=True,
+        )
+    )
+
+    bind_memory_from_state(SimpleNamespace(memory=memory), value)
+
+    assert memory.bound == ["verified-user"]
 
 
 def test_agent_profile_chain_uses_explicit_user_binding(tmp_path, tools):

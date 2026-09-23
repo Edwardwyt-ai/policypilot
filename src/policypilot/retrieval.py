@@ -39,12 +39,8 @@ def build_retrieval_query(state: PolicyPilotState, need: InformationNeed, rewrit
     """Build a stable skeleton without copying the raw user utterance."""
 
     entity = "" if need.entity in {"policy", "product", "banking_product", "user"} else need.entity.replace("_", " ")
-    hard_constraint_terms = {
-        "annual_fee": "no annual fee",
-        "rewards": "cashback rewards",
-    }
     scoped_constraints = [
-        hard_constraint_terms.get(item.aspect, item.aspect.replace("_", " "))
+        f"{item.aspect.replace('_', ' ')} {item.value}"
         for item in state.goal.criteria
         if item.hard
     ]

@@ -48,7 +48,31 @@ class ValidationResult:
 
     @property
     def recoverable_information_gap(self) -> bool:
-        return self.reason_code in {"KB_UNBOUND", "MISSING_REQUIRED_ARGUMENT"}
+        return self.reason_code in {
+            "KB_UNBOUND",
+            "MISSING_REQUIRED_ARGUMENT",
+            "UNVERIFIED_ARGUMENT",
+        }
+
+
+def _unverified_mutation_arguments(
+    call: ToolCall, state: PolicyPilotState
+) -> list[str]:
+    """Return mutation identifiers that do not match a current verified fact."""
+
+    unverified: list[str] = []
+    for name, value in (call.arguments or {}).items():
+        if not (name.endswith("_id") or name in {"account", "card", "customer"}):
+            continue
+        fact = state.get_fact(name, "user") or state.get_fact(name)
+        if (
+            fact is None
+            or not fact.verified
+            or fact.stale_at is not None
+            or fact.value != value
+        ):
+            unverified.append(name)
+    return unverified
 
 
 def decision_fallback_candidates(message: AssistantMessage) -> list[NeedCandidate]:
@@ -353,10 +377,7 @@ def validate_proposal(
     proposed_retrievals = sum(
         is_knowledge_tool(call.name) for call in message.tool_calls
     )
-    total_retrievals = sum(
-        is_knowledge_tool(record.name) and not record.blocked
-        for record in state.tool_history
-    )
+    total_retrievals = control.goal_retrieval_call_count
     if total_retrievals + proposed_retrievals > host.config.max_goal_retrieval_calls:
         return ValidationResult(
             allowed=False,
@@ -455,7 +476,7 @@ def validate_proposal(
                 proposed_action=proposed_action,
             )
         if classification == "transaction_read" and not any(
-            need.status == "OPEN"
+            need.status in {"OPEN", "PARTIALLY_COVERED", "REOPENED"}
             and need.source == "TOOL"
             and need.capability == call.name
             and all(call.arguments.get(key) == value for key, value in need.tool_arguments.items())
@@ -476,6 +497,21 @@ def validate_proposal(
                 details="Mutation preconditions are not satisfied for this decision.",
                 proposed_action=proposed_action,
             )
+        if classification == "mutation":
+            unverified = _unverified_mutation_arguments(call, state)
+            if unverified:
+                return ValidationResult(
+                    allowed=False,
+                    reason_code="UNVERIFIED_ARGUMENT",
+                    details=(
+                        "Mutation identifier arguments must match current verified "
+                        f"facts: {', '.join(sorted(unverified))}."
+                    ),
+                    proposed_action={
+                        **proposed_action,
+                        "missing_fields": sorted(unverified),
+                    },
+                )
         if classification == "mutation" and control.mutation_verification_required:
             return ValidationResult(
                 allowed=False,

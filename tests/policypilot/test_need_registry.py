@@ -248,7 +248,7 @@ def test_planner_criticality_uses_goal_relevance_without_reason_code():
     assert need.blocking
 
 
-def test_valid_need_candidates_are_not_truncated():
+def test_valid_need_candidates_respect_registry_limit():
     value = state()
     candidates = [
         candidate(f"dynamic_policy_term_{index}", scope=f"scope-{index}")
@@ -257,7 +257,8 @@ def test_valid_need_candidates_are_not_truncated():
 
     NeedManager().register_many(value, candidates, turn=1, max_needs=3)
 
-    assert len(value.information_needs) == 48
+    assert len(value.information_needs) == 3
+    assert value.control.need_registry_events[-1]["rejected_count"] == 45
 
 
 def test_partial_coverage_stays_open_and_records_coverage():
@@ -304,7 +305,7 @@ def test_selector_returns_only_one_blocking_actionable_need():
     assert sum(item.id == selected.id for item in value.information_needs) == 1
 
 
-def test_optional_and_exhausted_needs_do_not_block_decision():
+def test_critical_exhausted_need_prevents_unsupported_decision():
     value = state()
     value.information_needs.extend([
         InformationNeed(
@@ -317,7 +318,7 @@ def test_optional_and_exhausted_needs_do_not_block_decision():
         ),
     ])
 
-    assert decision_ready(
+    assert not decision_ready(
         value, PolicyPilotConfig(max_retrieval_attempts_per_semantic_need=2)
     )
     assert value.information_needs[1].exhausted
@@ -347,7 +348,7 @@ def test_repeated_semantically_identical_evidence_is_not_progress():
     assert not value.record_progress(before, turn=2)
 
 
-def test_no_progress_recovery_releases_but_keeps_need_for_audit():
+def test_no_progress_recovery_safe_stops_and_keeps_need_for_audit():
     value = state()
     value.information_needs.append(InformationNeed(
         id="blocked", entity="card", aspect="annual_fee", source="POLICY",
@@ -357,7 +358,8 @@ def test_no_progress_recovery_releases_but_keeps_need_for_audit():
     assert value.release_stalled_blockers(reason="test") == 1
     assert value.information_needs[0].status == "EXHAUSTED"
     assert value.information_needs[0].exhausted
-    assert decision_ready(value)
+    assert not decision_ready(value)
+    assert value.information_needs[0].blocking
 
 
 def test_workflow_has_no_while_open_need_loop():
@@ -408,3 +410,45 @@ def test_structured_tool_result_skips_planner_and_resolves_bound_need(
     )
 
     assert need.status == "RESOLVED"
+
+
+def test_business_empty_tool_result_does_not_resolve_bound_need(agent_factory):
+    agent = agent_factory(
+        config=PolicyPilotConfig(
+            memory_enabled=False,
+            skills_enabled=False,
+            semantic_planner_enabled=False,
+        )
+    )
+    value = agent.get_init_state()
+    candidate_value = NeedCandidate(
+        entity="account",
+        aspect="current_account_state",
+        source="TOOL",
+        capability="read_account",
+        tool_arguments={"account_id": "missing"},
+        criticality="CRITICAL",
+        reason_code="required_action_blocked",
+    )
+    agent.need_registry.register_many(value, [candidate_value], turn=0)
+    need = value.information_needs[0]
+    call = ToolCall(
+        id="read-missing",
+        name="read_account",
+        arguments={"account_id": "missing"},
+        requestor="assistant",
+    )
+    value.messages.append(AssistantMessage(role="assistant", tool_calls=[call]))
+    agent._record_valid_tool_calls(value.messages[-1], value, need.id)
+
+    agent._observe(
+        ToolMessage(
+            role="tool",
+            id="read-missing",
+            requestor="assistant",
+            content='{"status":"not_found","message":"Account not found"}',
+        ),
+        value,
+    )
+
+    assert need.status != "RESOLVED"

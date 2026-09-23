@@ -59,6 +59,21 @@ class SemanticPlan(BaseModel):
 
 PlannerOutput = SemanticPlan
 
+_TARGET_PATTERN = re.compile(
+    r"\b(cards?|accounts?|loans?|mortgages?|referrals?|transactions?|deposits?)\b",
+    re.I,
+)
+
+
+def _mentioned_target(content: str) -> str | None:
+    match = _TARGET_PATTERN.search(content)
+    if match is None:
+        return None
+    prefix = content[max(0, match.start() - 24) : match.start()]
+    if re.search(r"\b(?:have|has|with)\s+no\s+$|\bwithout\s+$|没有\s*$", prefix, re.I):
+        return None
+    return match.group(1).lower().removesuffix("s")
+
 
 class PlannerModelRouter:
     def route(self, *, ambiguous: bool) -> Literal["LIGHT"]:
@@ -81,6 +96,13 @@ def planner_trigger_reason(state: PolicyPilotState, content: str) -> str | None:
         return "goal_correction"
     if re.search(r"\b(must|without|prefer|ideally|highest|lowest|maximi[sz]e|minimi[sz]e)\b|必须|偏好|最好|最高|最低", text, re.I):
         return "constraint_change"
+    mentioned_target = _mentioned_target(text)
+    if (
+        mentioned_target
+        and state.goal.target
+        and normalize_text(mentioned_target) != normalize_text(state.goal.target)
+    ):
+        return "goal_scope_changed"
     return None
 
 
@@ -156,11 +178,15 @@ def _id(prefix: str, value: str) -> str:
 def deterministic_semantic_plan(state: PolicyPilotState, content: str, turn: int, intent: IntentType, memory_hints: list[str] | None = None) -> SemanticPlan:
     """Preserve explicit criteria without creating authoritative needs."""
 
-    replacing = bool(_CORRECT.search(content))
+    mentioned_target = _mentioned_target(content)
+    replacing = bool(_CORRECT.search(content)) or bool(
+        mentioned_target
+        and state.goal.target
+        and normalize_text(mentioned_target) != normalize_text(state.goal.target)
+    )
     delta = GoalDelta(objective=content.strip(), replace=replacing)
-    target = re.search(r"\b(cards?|accounts?|loans?|mortgages?|referrals?|transactions?|deposits?)\b", content, re.I)
-    if target and (state.goal.target is None or replacing):
-        delta.target = target.group(1).lower().removesuffix("s")
+    if mentioned_target and (state.goal.target is None or replacing):
+        delta.target = mentioned_target
     for sentence in filter(None, (item.strip() for item in re.split(r"(?<=[.!?])\s+|\n+", content))):
         for clause in filter(None, (item.strip() for item in re.split(r"\b(?:and|but|while)\b|[,;]", sentence, flags=re.I))):
             kind = "CONSTRAINT" if _HARD.search(clause) else "OPTIMIZATION" if _OPT.search(clause) else "PREFERENCE" if _PREF.search(clause) else None
@@ -190,6 +216,13 @@ def merge_semantic_plan(state: PolicyPilotState, plan: SemanticPlan, turn: int) 
     """Merge goal/fact deltas and return candidates for the sole Need Registry."""
 
     delta = plan.goal_delta
+    if delta.replace:
+        for need in state.open_needs():
+            state.mark_not_applicable(
+                need, reason="superseded_by_goal_change", turn=turn
+            )
+        state.goal.criteria.clear()
+        state.goal.comparative = False
     if delta.complete:
         state.goal.status = "COMPLETED"
     if delta.objective and (not state.goal.objective or delta.replace):
@@ -221,17 +254,11 @@ def merge_semantic_plan(state: PolicyPilotState, plan: SemanticPlan, turn: int) 
             and need.status == "RESOLVED"
             and need.aspect in changed_hard_aspects
         ):
-            state.reopen_need(
+            state.mark_not_applicable(
                 need,
-                reason="hard_constraint_changed",
+                reason="superseded_by_hard_constraint_change",
                 turn=turn,
             )
-            matching = next(
-                item for item in delta.criteria if item.aspect == need.aspect and item.hard
-            )
-            need.query_terms = list(
-                dict.fromkeys([*need.query_terms, matching.value[:160]])
-            )[-4:]
     state.goal.updated_turn = turn
     if plan.intent is not None:
         if plan.intent != "TRANSACTIONAL" or (

@@ -29,9 +29,22 @@ class NeedManager:
         *,
         capabilities: set[str] | None = None,
         evidence_resolver: EvidenceResolver | None = None,
+        max_needs: int = 40,
     ):
         self.capabilities = capabilities or set()
         self.evidence_resolver = evidence_resolver or EvidenceResolver()
+        self.max_needs = max_needs
+
+    @staticmethod
+    def _requirement_fingerprint(state: PolicyPilotState, aspect: str) -> str:
+        values = sorted(
+            normalize_text(item.value)
+            for item in state.goal.criteria
+            if item.hard and item.aspect == aspect
+        )
+        if not values:
+            return ""
+        return hashlib.sha1("|".join(values).encode("utf-8")).hexdigest()[:10]
 
     @staticmethod
     def _normalized_candidate(
@@ -62,6 +75,9 @@ class NeedManager:
         value = state or PolicyPilotState(system_messages=[])
         entity, aspect, scope, _ = cls._normalized_candidate(value, candidate)
         base = f"{candidate.source}|{entity}|{aspect}|{scope or '*'}"
+        requirement = cls._requirement_fingerprint(value, aspect)
+        if requirement:
+            base = f"{base}|requirement:{requirement}"
         return f"{base}|query:{candidate.query_id}" if candidate.query_id else base
 
     @staticmethod
@@ -125,6 +141,9 @@ class NeedManager:
                 rejected += 1
                 continue
             key = f"{candidate.source}|{entity}|{aspect}|{normalized_scope or '*'}"
+            requirement = self._requirement_fingerprint(state, aspect)
+            if requirement:
+                key = f"{key}|requirement:{requirement}"
             if candidate.query_id:
                 key = f"{key}|query:{candidate.query_id}"
             blocking = self._blocking(
@@ -178,6 +197,11 @@ class NeedManager:
                         existing.blocking = True
                 continue
 
+            effective_limit = max_needs if max_needs is not None else self.max_needs
+            if len(state.information_needs) >= effective_limit:
+                rejected += 1
+                continue
+
             covered_by = []
             partial_refs = []
             for evidence in reversed(state.evidence):
@@ -192,7 +216,7 @@ class NeedManager:
                     critical=blocking,
                     blocking=blocking,
                 )
-                coverage = self.evidence_resolver.coverage(probe, evidence)
+                coverage = self.evidence_resolver.coverage(probe, evidence, state=state)
                 if coverage == "MATCH" and evidence.tool_call_id:
                     covered_by.append(evidence.tool_call_id)
                 elif coverage == "PARTIAL" and evidence.tool_call_id:
@@ -245,7 +269,7 @@ class NeedManager:
                 new_resolved += 1
             else:
                 new_open += 1
-            state.upsert_need(need)
+            state.upsert_need(need, max_needs=effective_limit)
             accepted += 1
 
         stats = NeedRegistrationStats(

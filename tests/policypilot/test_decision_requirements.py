@@ -9,7 +9,12 @@ from policypilot.requirements import (
     retrieval_gaps,
 )
 from policypilot.retrieval import build_retrieval_query
-from policypilot.state import InformationNeed, NeedCandidate, PolicyPilotState
+from policypilot.state import (
+    GoalCriterion,
+    InformationNeed,
+    NeedCandidate,
+    PolicyPilotState,
+)
 from policypilot.state_updates import classify_intent
 from tau2.data_model.message import SystemMessage
 
@@ -39,7 +44,7 @@ def test_transaction_question_does_not_authorize_action_or_retarget_goal():
     assert value.goal.target == "card"
 
 
-def test_hard_constraint_reopens_matching_resolved_policy_need():
+def test_hard_constraint_supersedes_resolved_policy_need():
     value = state()
     value.goal.objective = "Compare cards"
     value.goal.target = "card"
@@ -62,9 +67,9 @@ def test_hard_constraint_reopens_matching_resolved_policy_need():
         2,
     )
 
-    assert need.status == "REOPENED"
-    assert need.blocking
-    assert "no annual fee" in " ".join(need.query_terms).lower()
+    assert need.status == "NOT_APPLICABLE"
+    assert not need.blocking
+    assert need.status_reason == "superseded_by_hard_constraint_change"
 
 
 def test_partial_evidence_is_coverage_not_completion():
@@ -99,6 +104,103 @@ def test_partial_evidence_is_coverage_not_completion():
     assert need.status == "PARTIALLY_COVERED"
     assert retrieval_coverage(value)[0].status == "PARTIAL"
     assert retrieval_gaps(value)[0].need_id == need.id
+
+
+def test_topic_match_does_not_resolve_unsatisfied_hard_constraint():
+    value = state()
+    value.goal.target = "card"
+    value.goal.criteria.append(
+        GoalCriterion(
+            id="fee-zero",
+            kind="CONSTRAINT",
+            aspect="annual_fee",
+            value="must have no annual fee",
+            hard=True,
+            source_turn=0,
+        )
+    )
+    NeedRegistry().register_many(
+        value,
+        [
+            NeedCandidate(
+                entity="card",
+                aspect="annual_fee",
+                scope="card",
+                source="POLICY",
+                criticality="CRITICAL",
+                reason_code="explicit_hard_constraint",
+            )
+        ],
+        turn=1,
+    )
+    need = value.information_needs[0]
+
+    EvidenceResolver().resolve(
+        value,
+        EvidenceRecord(
+            source_type="knowledge_retrieval",
+            turn_index=2,
+            summary="The personal card has an annual fee of $200.",
+            tool_name="KB_search",
+            tool_call_id="kb-fee",
+        ),
+        trigger_need_id=need.id,
+    )
+
+    assert need.status == "PARTIALLY_COVERED"
+    assert need.coverage == "PARTIAL"
+
+
+def test_changed_hard_constraint_gets_distinct_need_identity():
+    value = state()
+    value.goal.target = "card"
+    value.goal.criteria.append(
+        GoalCriterion(
+            id="fee-limit",
+            kind="CONSTRAINT",
+            aspect="annual_fee",
+            value="annual fee under $95",
+            hard=True,
+            source_turn=0,
+        )
+    )
+    first = NeedCandidate(
+        entity="card", aspect="annual_fee", scope="card", source="POLICY"
+    )
+    first_key = NeedRegistry.semantic_key(first, value)
+    value.goal.criteria[0].value = "must have no annual fee"
+
+    assert NeedRegistry.semantic_key(first, value) != first_key
+
+
+def test_explicit_target_shift_replaces_old_goal_and_needs():
+    value = state()
+    first = "Compare personal cards for cash back."
+    merge_semantic_plan(
+        value,
+        deterministic_semantic_plan(value, first, 0, classify_intent(first)),
+        0,
+    )
+    value.information_needs.append(
+        InformationNeed(
+            id="old-card-need",
+            entity="card",
+            aspect="rewards",
+            source="POLICY",
+            reason="old goal",
+        )
+    )
+
+    follow_up = "Now check my account balance."
+    merge_semantic_plan(
+        value,
+        deterministic_semantic_plan(value, follow_up, 1, classify_intent(follow_up)),
+        1,
+    )
+
+    assert value.goal.target == "account"
+    assert value.goal.objective == follow_up
+    assert value.information_needs[0].status == "NOT_APPLICABLE"
 
 
 def test_requirement_gap_view_is_compact_and_derived():

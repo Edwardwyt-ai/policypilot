@@ -131,6 +131,7 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
         self.need_registry = NeedRegistry(
             capabilities=read_capability_names,
             evidence_resolver=self.evidence_resolver,
+            max_needs=self.config.max_information_needs,
         )
         self.context_compressor = (
             ToolContextCompressor(

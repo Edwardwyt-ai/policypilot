@@ -33,6 +33,27 @@ def apply_user(value, text, turn=0):
     seed_information_needs(value, turn)
 
 
+def test_context_always_includes_required_fact_for_exposed_tool(tools):
+    value = state()
+    value.goal.objective = "Complete the requested change"
+    value.facts.append(
+        FactRecord(
+            id="account-id",
+            entity="user",
+            aspect="account_id",
+            value="a1",
+            source="TOOL",
+            turn_index=0,
+            authoritative=True,
+        )
+    )
+    mutate_tool = next(tool for tool in tools if tool.name == "mutate_account")
+
+    context = build_agent_context(value, [mutate_tool])
+
+    assert "user.account_id=a1" in context.structured_summary
+
+
 def test_semantic_plan_keeps_goal_constraints_and_optimization_across_turns():
     value = state()
     apply_user(value, "Compare personal cards. I must have no annual fee and want the highest cash back.")

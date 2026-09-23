@@ -35,7 +35,53 @@ def _evidence_text(evidence: EvidenceRecord) -> str:
 
 
 class EvidenceResolver:
-    def coverage(self, need: InformationNeed, evidence: EvidenceRecord) -> Coverage:
+    @staticmethod
+    def _supports_hard_requirement(
+        state: PolicyPilotState, need: InformationNeed, text: str
+    ) -> bool:
+        criteria = [
+            item
+            for item in state.goal.criteria
+            if item.hard and item.aspect == need.aspect
+        ]
+        if not criteria:
+            return True
+        for criterion in criteria:
+            required = normalize_text(criterion.value).replace("_", " ")
+            if need.aspect == "annual_fee":
+                requires_zero = bool(
+                    re.search(r"\b(no|without|zero)\b.*\bannual fee\b|免年费|零年费", required, re.I)
+                )
+                if requires_zero and not re.search(
+                    r"\b(no|zero) annual fee\b|annual fee[^\n.;]{0,20}(?:(?:\$\s*)?(?<![\d.])0(?:\.0+)?(?!\d)|waived)|fee-free|免年费|零年费",
+                    text,
+                    re.I,
+                ):
+                    return False
+                limit = re.search(
+                    r"(?:under|below|less than|at most|no more than|不超过|低于)\s*\$?\s*(\d+(?:\.\d+)?)",
+                    required,
+                    re.I,
+                )
+                observed = re.search(
+                    r"annual fee[^\d$]{0,20}\$?\s*(\d+(?:\.\d+)?)",
+                    text,
+                    re.I,
+                )
+                if limit and (not observed or float(observed.group(1)) > float(limit.group(1))):
+                    return False
+            elif need.aspect == "rewards" and "cashback" in required:
+                if not re.search(r"cash.?back", text, re.I):
+                    return False
+        return True
+
+    def coverage(
+        self,
+        need: InformationNeed,
+        evidence: EvidenceRecord,
+        *,
+        state: PolicyPilotState | None = None,
+    ) -> Coverage:
         if need.source != "POLICY" or evidence.source_type != "knowledge_retrieval":
             return "NO_MATCH"
         text = _evidence_text(evidence)
@@ -60,6 +106,10 @@ class EvidenceResolver:
                 set(normalize_text(text).split("_"))
             )
         if entity_match and scope_match and aspect_match:
+            if state is not None and not self._supports_hard_requirement(
+                state, need, text
+            ):
+                return "PARTIAL"
             return "MATCH"
         if entity_match and (aspect_match or not scope_match):
             return "PARTIAL"
@@ -75,7 +125,7 @@ class EvidenceResolver:
         matched: list[str] = []
         partial: list[str] = []
         for need in state.open_needs("POLICY"):
-            coverage = self.coverage(need, evidence)
+            coverage = self.coverage(need, evidence, state=state)
             if coverage == "NO_MATCH":
                 continue
             need.coverage = coverage
@@ -109,12 +159,11 @@ class EvidenceResolver:
         )
         trigger_coverage: Coverage = "NO_MATCH"
         if trigger is not None:
-            trigger_coverage = self.coverage(trigger, evidence)
+            trigger_coverage = self.coverage(trigger, evidence, state=state)
             trigger.coverage = trigger_coverage
             if trigger_coverage == "NO_MATCH" and trigger.query_id:
                 trigger.status = "EXHAUSTED"
                 trigger.exhausted = True
-                trigger.blocking = False
                 trigger.actionable = False
                 trigger.status_reason = "query_scoped_evidence_did_not_match"
         return {

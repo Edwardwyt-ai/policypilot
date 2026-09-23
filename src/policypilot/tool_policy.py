@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -176,7 +175,9 @@ class ToolExposureResolver:
                     not self._mutation_preconditions_satisfied(tool, state)
                     or state.control.mutation_verification_required
                     or any(
-                        need.status == "OPEN" and need.critical and need.blocking
+                        need.status in {"OPEN", "PARTIALLY_COVERED", "REOPENED", "EXHAUSTED"}
+                        and need.critical
+                        and need.blocking
                         for need in state.information_needs
                     )
                 )
@@ -187,16 +188,20 @@ class ToolExposureResolver:
 
     @staticmethod
     def _mutation_preconditions_satisfied(tool: Tool, state: Any) -> bool:
-        if state.intent == "TRANSACTIONAL":
-            return True
         required = {
             name
             for name, field_info in tool.params.model_fields.items()
             if field_info.is_required()
         }
-        known = {fact.aspect for fact in state.facts if fact.authoritative}
+        known = {
+            fact.aspect
+            for fact in state.facts
+            if fact.authoritative
+            and fact.stale_at is None
+            and (not fact.aspect.endswith("_id") or fact.verified)
+        }
         covered = required.intersection(known)
-        if not required or len(covered) < max(1, math.ceil(len(required) * 0.6)):
+        if not required or not covered:
             return False
         missing = required - known
         if len(missing) > 1:

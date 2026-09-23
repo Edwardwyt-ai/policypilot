@@ -270,6 +270,8 @@ class PolicyPilotWorkflow:
         need = gs.get("active_need")
         if decision_ready(state, self.host.config):
             return "decision"
+        if need is not None and need.status == "EXHAUSTED":
+            return "unknown"
         return {
             "USER": "ask_user",
             "POLICY": "retrieve_policy",
@@ -352,14 +354,21 @@ class PolicyPilotWorkflow:
 
     def unknown(self, gs):
         need = gs.get("active_need")
-        return self.trace(
-            gs,
-            "unknown",
-            final_action=AssistantMessage.text(
+        if need is not None and need.status == "EXHAUSTED":
+            text = (
+                "I cannot safely complete this request because the required "
+                f"{need.aspect.replace('_', ' ')} information could not be verified."
+            )
+        else:
+            text = (
                 f"I need clarification about {need.aspect.replace('_', ' ')} before I can continue."
                 if need
                 else "I need clarification before I can continue."
-            ),
+            )
+        return self.trace(
+            gs,
+            "unknown",
+            final_action=AssistantMessage.text(text),
         )
 
     def build_context(self, gs):

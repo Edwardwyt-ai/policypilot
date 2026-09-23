@@ -57,7 +57,7 @@ class NeedResolver:
         for need in state.information_needs:
             if need.status in {"RESOLVED", "NOT_APPLICABLE", "EXHAUSTED"}:
                 continue
-            fact = next((fact for fact in reversed(state.facts) if fact.entity == need.entity and fact.aspect == need.aspect and self._authoritative_for(need, fact.source) and (not need.evidence_refs or fact.evidence_ref in need.evidence_refs)), None)
+            fact = next((fact for fact in reversed(state.facts) if fact.authoritative and fact.entity == need.entity and fact.aspect == need.aspect and self._authoritative_for(need, fact.source) and (not need.evidence_refs or fact.evidence_ref in need.evidence_refs)), None)
             if fact is None:
                 if need.source == "TOOL" and self.config.task_fact_reuse_enabled:
                     state.control.task_fact_reuse_miss += 1
@@ -155,13 +155,22 @@ def select_next_blocking_need(
             >= attempt_limit
         ):
             need.exhausted = True
-            need.blocking = False
             need.actionable = False
             need.status = "EXHAUSTED"
             need.status_reason = "retrieval_attempt_limit_reached"
         if is_blocking_actionable(need):
             eligible.append(need)
-    return next(iter(eligible), None)
+    if eligible:
+        return eligible[0]
+    # Preserve a critical exhausted need as an explicit safe-stop reason.
+    return next(
+        (
+            need
+            for need in state.information_needs
+            if need.status == "EXHAUSTED" and need.critical and need.blocking
+        ),
+        None,
+    )
 
 
 def decision_ready(

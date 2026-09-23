@@ -77,6 +77,37 @@ def recover_validation_failure(
                     provenance="guard_recovery",
                 )
             )
+    elif result.reason_code == "UNVERIFIED_ARGUMENT":
+        proposed_values = {
+            key: value
+            for call in calls[:1]
+            for key, value in (call.get("arguments") or {}).items()
+        }
+        for field_name in result.proposed_action.get("missing_fields") or []:
+            capability = next(
+                (
+                    item
+                    for item in host.source_resolver.capabilities
+                    if item.classification == "transaction_read"
+                    and field_name in item.fields
+                ),
+                None,
+            )
+            if capability is None or field_name not in proposed_values:
+                continue
+            candidates.append(
+                NeedCandidate(
+                    entity="user",
+                    aspect=str(field_name),
+                    source="TOOL",
+                    capability=capability.name,
+                    tool_arguments={field_name: proposed_values[field_name]},
+                    criticality="CRITICAL",
+                    reason_code="authoritative_precondition",
+                    purpose="PRE_MUTATION",
+                    provenance="guard_recovery",
+                )
+            )
     if not candidates:
         return False
 
@@ -112,15 +143,6 @@ def recover_read_failure(
     signature = tool_signature(outcome.tool_call.name, outcome.tool_call.arguments)
     control = state.control
     attempts = control.tool_retry_attempts.get(signature, 0)
-    if attempts >= host.config.max_read_tool_retries:
-        control.recovery_failure_count += 1
-        return None
-    call = outcome.tool_call.model_copy(
-        update={"id": f"recovery_{uuid.uuid4().hex[:12]}"}
-    )
-    control.tool_retry_attempts[signature] = attempts + 1
-    control.tool_retry_count += 1
-    message = AssistantMessage(role="assistant", tool_calls=[call])
     original_need_id = next(
         (
             record.need_id
@@ -129,6 +151,29 @@ def recover_read_failure(
         ),
         None,
     )
+    if attempts >= host.config.max_read_tool_retries:
+        control.recovery_failure_count += 1
+        need = next(
+            (
+                item
+                for item in state.information_needs
+                if item.id == original_need_id
+            ),
+            None,
+        )
+        if need is not None:
+            need.status = "EXHAUSTED"
+            need.exhausted = True
+            need.blocking = need.critical
+            need.actionable = False
+            need.status_reason = "read_retry_limit_reached"
+        return None
+    call = outcome.tool_call.model_copy(
+        update={"id": f"recovery_{uuid.uuid4().hex[:12]}"}
+    )
+    control.tool_retry_attempts[signature] = attempts + 1
+    control.tool_retry_count += 1
+    message = AssistantMessage(role="assistant", tool_calls=[call])
     host._record_valid_tool_calls(message, state, original_need_id)
     return message
 

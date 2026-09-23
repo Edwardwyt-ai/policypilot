@@ -27,12 +27,60 @@ def test_main_decision_sees_bounded_knowledge_but_not_transaction_reads(agent_fa
     agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
     state = agent.get_init_state()
     state.intent = "TRANSACTIONAL"
+    state.messages.append(UserMessage.text("Please mutate this account now."))
 
     exposed = {tool.name for tool in agent._decision_tools(state)}
 
     assert "KB_search" in exposed
     assert "read_account" not in exposed
-    assert "mutate_account" in exposed
+    assert "mutate_account" not in exposed
+
+
+def test_transactional_intent_does_not_unlock_mutation_without_verified_identifier(
+    agent_factory,
+):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.intent = "TRANSACTIONAL"
+    state.facts.append(
+        FactRecord(
+            id="user-account",
+            entity="user",
+            aspect="account_id",
+            value="a1",
+            source="USER",
+            turn_index=0,
+            authoritative=True,
+        )
+    )
+
+    assert "mutate_account" not in {tool.name for tool in agent._decision_tools(state)}
+
+
+def test_verified_identifier_unlocks_mutation_and_guard_rejects_mismatch(agent_factory):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.intent = "TRANSACTIONAL"
+    state.messages.append(UserMessage.text("Please mutate this account now."))
+    state.facts.append(
+        FactRecord(
+            id="tool-account",
+            entity="user",
+            aspect="account_id",
+            value="a1",
+            source="TOOL",
+            turn_index=0,
+            authoritative=True,
+        )
+    )
+
+    assert "mutate_account" in {tool.name for tool in agent._decision_tools(state)}
+    result = validate_proposal(
+        agent, tool_message("mutate_account", {"account_id": "a2"}), state
+    )
+
+    assert not result.allowed
+    assert result.reason_code == "UNVERIFIED_ARGUMENT"
 
 
 def test_main_decision_knowledge_permission_can_be_disabled(agent_factory):
@@ -357,3 +405,42 @@ def test_guard_recovery_preserves_canonical_gap_from_blocked_query(agent_factory
     need = state.open_needs("POLICY")[0]
     assert need.aspect == "annual_fee"
     assert need.query_terms == ["personal card annual fee no fee"]
+
+
+def test_final_answer_is_blocked_when_critical_need_is_exhausted(agent_factory):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+    state = agent.get_init_state()
+    state.information_needs.append(
+        InformationNeed(
+            id="exhausted-fee",
+            entity="card",
+            aspect="annual_fee",
+            source="POLICY",
+            status="EXHAUSTED",
+            reason="lookup failed",
+            critical=True,
+            blocking=True,
+            actionable=False,
+            exhausted=True,
+        )
+    )
+
+    result = validate_proposal(
+        agent, AssistantMessage.text("This card has no annual fee."), state
+    )
+
+    assert not result.allowed
+    assert result.reason_code == "POLICY_REJECTED"
+
+
+def test_unconfirmed_mutation_success_claim_is_blocked(agent_factory):
+    agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
+
+    result = validate_proposal(
+        agent,
+        AssistantMessage.text("Your account was successfully changed."),
+        agent.get_init_state(),
+    )
+
+    assert not result.allowed
+    assert result.reason_code == "POLICY_REJECTED"

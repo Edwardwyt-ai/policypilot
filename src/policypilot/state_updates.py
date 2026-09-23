@@ -254,14 +254,30 @@ def update_facts_from_tool_evidence(state: PolicyPilotState, evidence: EvidenceR
             _fact(state, entity=entity or "policy", aspect="policy_document", value={"document_id": policy_ref.document_id, "title": policy_ref.title, "summary": evidence.summary}, source="POLICY", turn=evidence.turn_index, evidence_ref=ref, authoritative=True)
         return
 
-    parsed = _parse_tool_payload(raw_content or evidence.summary)
+    raw_payload = raw_content or evidence.summary
+    try:
+        json.loads(raw_payload)
+        structured_payload = True
+    except (TypeError, ValueError):
+        structured_payload = False
+    parsed = _parse_tool_payload(raw_payload)
     identity_lookup = bool(evidence.tool_name and re.search(r"get_user|user_information|customer", evidence.tool_name, re.I))
     for path, value in _flatten(parsed):
         aspect = re.sub(r"[^a-z0-9]+", "_", path.rsplit(".", 1)[-1].lower()).strip("_") or "result"
         entity = "user" if identity_lookup and aspect in {"user_id", "id", "email", "phone_number", "name", "address", "date_of_birth"} else _entity_from_path(path)
         if entity == "user" and aspect == "id":
             aspect = "user_id"
-        _fact(state, entity=entity, aspect=aspect, value=value, source="TOOL", turn=evidence.turn_index, evidence_ref=ref, authoritative=True, raw_path=path)
+        _fact(
+            state,
+            entity=entity,
+            aspect=aspect,
+            value=value,
+            source="TOOL",
+            turn=evidence.turn_index,
+            evidence_ref=ref,
+            authoritative=structured_payload,
+            raw_path=path,
+        )
 
 
 def resolve_user_needs(state: PolicyPilotState) -> None:

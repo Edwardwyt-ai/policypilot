@@ -66,10 +66,27 @@ def _bound_recent(messages: list[APICompatibleMessage]) -> list[APICompatibleMes
         )
     return bounded
 
-def _selected_records(state: PolicyPilotState, config: PolicyPilotConfig):
+def _selected_records(
+    state: PolicyPilotState,
+    config: PolicyPilotConfig,
+    tools: list[Tool] | None = None,
+):
     goal = state.goal
     focus = _tokens(" ".join([goal.objective or "", goal.target or "", *(c.value for c in goal.criteria), *(n.reason for n in state.open_needs())]))
-    facts = [f for f in state.facts if not focus or focus & _tokens(f"{f.entity} {f.aspect} {f.value}")][-min(config.max_context_facts, 16):]
+    required_fields = {
+        name
+        for tool in (tools or [])
+        for name, field in tool.params.model_fields.items()
+        if field.is_required()
+    }
+    relevant = [
+        fact
+        for fact in state.facts
+        if fact.aspect in required_fields
+        or not focus
+        or focus & _tokens(f"{fact.entity} {fact.aspect} {fact.value}")
+    ]
+    facts = relevant[-min(config.max_context_facts, 16):]
     evidence = [e for e in state.evidence if not focus or focus & _tokens(e.summary)][-min(config.max_context_evidence, 2):]
     needs = state.open_needs()[:10]
     return facts, evidence, needs
@@ -77,7 +94,7 @@ def _selected_records(state: PolicyPilotState, config: PolicyPilotConfig):
 
 def _summary(state: PolicyPilotState, tools: list[Tool], config: PolicyPilotConfig, memory_context: str = "") -> str:
     goal = state.goal
-    facts, evidence, selected_needs = _selected_records(state, config)
+    facts, evidence, selected_needs = _selected_records(state, config, tools)
     criteria = "\n".join(
         f"- {c.kind} {c.aspect}: {_compact(c.value, 180)}"
         for c in goal.criteria
@@ -170,6 +187,7 @@ def build_agent_context(
         size > config.max_decision_context_chars
         or estimated_tokens > config.max_decision_context_tokens
     )
+    compressed = False
     if compressor is not None and over_budget:
         query_focus = " ".join(
             [
@@ -198,6 +216,7 @@ def build_agent_context(
                 *([latest_user] if latest_user is not None else []),
             ]
             size = _estimated_size(messages)
+            compressed = True
             state.control.context_compressor_events.append(
                 {"before_chars": len(serialized), "after_chars": size, "calls": 1}
             )
@@ -205,7 +224,9 @@ def build_agent_context(
             state.control.context_compressor_events.append(
                 {"before_chars": len(serialized), "after_chars": size, "calls": 1, "error": str(exc)[:200]}
             )
-    selected_facts, selected_evidence, selected_needs = _selected_records(state, config)
+    selected_facts, selected_evidence, selected_needs = _selected_records(
+        state, config, tools
+    )
     manifest = ContextManifest(
         run_id=state.run_id,
         turn_id=len(state.messages),
@@ -217,7 +238,7 @@ def build_agent_context(
         exposed_tools=[tool.name for tool in tools],
         model=model,
         prompt_version=prompt_version,
-        metadata={"estimated_chars": size, "compressed": over_budget},
+        metadata={"estimated_chars": size, "compressed": compressed},
     )
     manifest.metadata.update(
         {

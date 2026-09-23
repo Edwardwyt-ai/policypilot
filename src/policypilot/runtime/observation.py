@@ -58,6 +58,38 @@ class ObservationHost(Protocol):
     def _skill_guidance(self, phase: str, state: PolicyPilotState) -> str: ...
 
 
+def _read_result_is_conclusive(content: str) -> bool:
+    """Distinguish a successful transport response from a useful business result."""
+
+    normalized = " ".join(content.casefold().split())
+    if not normalized or any(
+        marker in normalized
+        for marker in (
+            "not found",
+            "no records",
+            "no results",
+            "permission denied",
+            "unauthorized",
+            "access denied",
+            "unable to locate",
+        )
+    ):
+        return False
+    try:
+        payload = json.loads(content)
+    except (TypeError, ValueError):
+        return True
+    if payload in (None, [], {}):
+        return False
+    if isinstance(payload, dict):
+        status = str(payload.get("status", "")).casefold()
+        if status in {"error", "failed", "not_found", "denied"}:
+            return False
+        if payload.get("success") is False:
+            return False
+    return True
+
+
 def activate_recovery_skill(
     host: ObservationHost,
     outcomes: list[ObservationOutcome],
@@ -88,6 +120,7 @@ def bind_memory_from_state(host: ObservationHost, state: PolicyPilotState) -> No
     if (
         identity is not None
         and isinstance(identity.value, str)
+        and identity.verified
         and host.memory.user_id is None
     ):
         host.memory.bind(identity.value, query=state.goal.objective or "")
@@ -204,6 +237,8 @@ def observe(
             state.control.retrieval_recovery_exhausted = False
             state.control.last_retrieval_query = None
             state.control.goal_retrieval_call_count = 0
+            state.control.retrieval_query_history.clear()
+            state.control.fallback_need_count = 0
         state.record_progress(progress_before, turn=turn)
         return []
     if isinstance(message, ToolMessage):
@@ -321,7 +356,7 @@ def observe_tool_message(
                 mutation_record.updated_turn = len(state.messages)
                 mutation_record.details = "Environment returned a successful result."
             invalidate_tool_facts(state, runtime_metadata.invalidates)
-        else:
+        elif classification != "transaction_read" or _read_result_is_conclusive(content):
             update_facts_from_tool_evidence(state, evidence, raw_content=content)
             attach_tool_fact_metadata(
                 state,
@@ -380,7 +415,7 @@ def observe_tool_message(
                             state.resolve_latest_error(
                                 PolicyPilotErrorType.MUTATION_UNCERTAIN
                             )
-                    elif need.status != "RESOLVED":
+                    elif need.status != "RESOLVED" and _read_result_is_conclusive(content):
                         state.resolve_need(need, evidence_refs=[message.id])
                         state.control.needs_resolved_count += 1
                 if acquisition is not None:

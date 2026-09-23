@@ -75,7 +75,9 @@ class FactRecord(BaseModel):
         return self.evidence_ref or self.source_identifier or self.source
     @property
     def verified(self) -> bool:
-        return self.authoritative
+        # A user assertion may be usable as task input, but it is not an
+        # independently verified live-system fact.
+        return self.authoritative and self.source in {"TOOL", "POLICY"}
 
 
 class FactCandidate(BaseModel):
@@ -284,6 +286,8 @@ class PolicyPilotState(BaseModel):
                     need.critical = True
                 self.information_needs[index] = need
                 return "updated"
+        if max_needs is not None and len(self.information_needs) >= max_needs:
+            return "limit_reached"
         self.information_needs.append(need)
         self.control.needs_added_count += 1
         return "added"
@@ -406,9 +410,9 @@ class PolicyPilotState(BaseModel):
         released = 0
         for need in self.open_needs():
             if need.blocking:
-                need.blocking = False
                 need.exhausted = True
                 need.status = "EXHAUSTED"
+                need.actionable = False
                 need.status_reason = reason
                 need.updated_turn = len(self.messages)
                 released += 1

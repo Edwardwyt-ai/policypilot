@@ -1,6 +1,6 @@
+import logging
 import pickle
 import time
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -121,6 +121,9 @@ class RetrievalPipeline:
             raise ValueError("No documents indexed. Call index_documents() first.")
 
         timing = RetrievalTiming()
+        effective_top_k = (
+            top_k if top_k is not None else self._retriever_top_k_override
+        )
 
         input_data: Dict[str, Any] = {"query": query}
         if "kb_search_inputs" in self.state:
@@ -133,7 +136,7 @@ class RetrievalPipeline:
             cache_key = cache.key(
                 query,
                 filters=self.state.get("kb_search_inputs", {}),
-                top_k=top_k,
+                top_k=effective_top_k,
                 config=self.config,
             )
             cached = cache.get(cache_key)
@@ -173,8 +176,8 @@ class RetrievalPipeline:
             retriever.top_k = orig_top_k
 
         results = sorted(all_results.items(), key=lambda x: x[1], reverse=True)
-        if top_k is not None:
-            results = results[:top_k]
+        if effective_top_k is not None:
+            results = results[:effective_top_k]
         if cached_candidates is None and cache_key is not None:
             try:
                 cache.set(cache_key, results, timing.retrieval_ms)
@@ -212,6 +215,9 @@ class RetrievalPipeline:
     ) -> List[List[Tuple[str, float]]]:
         if "documents" not in self.state:
             raise ValueError("No documents indexed. Call index_documents() first.")
+        effective_top_k = (
+            top_k if top_k is not None else self._retriever_top_k_override
+        )
 
         extra_inputs = self.state.get("kb_search_inputs", {})
         input_data_list = [{"query": query, **extra_inputs} for query in queries]
@@ -247,8 +253,8 @@ class RetrievalPipeline:
             sorted_results = sorted(
                 result_dict.items(), key=lambda x: x[1], reverse=True
             )
-            if top_k is not None:
-                sorted_results = sorted_results[:top_k]
+            if effective_top_k is not None:
+                sorted_results = sorted_results[:effective_top_k]
             results_list.append(sorted_results)
 
         original_postprocessor_top_ks = []
