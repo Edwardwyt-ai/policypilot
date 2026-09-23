@@ -17,6 +17,7 @@ from policypilot.state import (
     NeedCandidate,
     PolicyPilotState,
 )
+from policypilot.state_updates import is_explicit_action_request
 from policypilot.taxonomy import canonicalize_aspect, normalize_text
 from tau2.data_model.message import SystemMessage, UserMessage
 
@@ -37,8 +38,10 @@ class SemanticPlan(BaseModel):
     )
     goal_delta: GoalDelta = Field(default_factory=GoalDelta)
     fact_candidates: list[FactCandidate] = Field(default_factory=list, max_length=4)
-    need_candidates: list[NeedCandidate] = Field(default_factory=list)
+    need_candidates: list[NeedCandidate] = Field(default_factory=list, max_length=6)
     subgoal_delta: str | None = Field(default=None, max_length=240)
+    explicit_action_request: bool = False
+    intent_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     model_route: Literal["DETERMINISTIC", "LIGHT"] = "LIGHT"
 
     @property
@@ -156,7 +159,7 @@ def deterministic_semantic_plan(state: PolicyPilotState, content: str, turn: int
     replacing = bool(_CORRECT.search(content))
     delta = GoalDelta(objective=content.strip(), replace=replacing)
     target = re.search(r"\b(cards?|accounts?|loans?|mortgages?|referrals?|transactions?|deposits?)\b", content, re.I)
-    if target:
+    if target and (state.goal.target is None or replacing):
         delta.target = target.group(1).lower().removesuffix("s")
     for sentence in filter(None, (item.strip() for item in re.split(r"(?<=[.!?])\s+|\n+", content))):
         for clause in filter(None, (item.strip() for item in re.split(r"\b(?:and|but|while)\b|[,;]", sentence, flags=re.I))):
@@ -171,7 +174,16 @@ def deterministic_semantic_plan(state: PolicyPilotState, content: str, turn: int
         state.control.route_trace.append(
             f"semantic_planner_memory_hints:{min(len(memory_hints), 2)}"
         )
-    return SemanticPlan(intent_delta=intent, goal_delta=delta, model_route="DETERMINISTIC")
+    explicit_action = intent == "TRANSACTIONAL" and is_explicit_action_request(
+        content
+    )
+    return SemanticPlan(
+        intent_delta=intent,
+        goal_delta=delta,
+        explicit_action_request=explicit_action,
+        intent_confidence=0.9 if explicit_action or intent != "TRANSACTIONAL" else 0.55,
+        model_route="DETERMINISTIC",
+    )
 
 
 def merge_semantic_plan(state: PolicyPilotState, plan: SemanticPlan, turn: int) -> list[NeedCandidate]:
@@ -184,18 +196,50 @@ def merge_semantic_plan(state: PolicyPilotState, plan: SemanticPlan, turn: int) 
         state.goal.objective = delta.objective
         state.goal.source_turn = turn
         state.control.goal_change_count += 1
-    if delta.target:
+    if delta.target and (
+        state.goal.target is None
+        or delta.replace
+        or normalize_text(delta.target) == normalize_text(state.goal.target)
+    ):
         state.goal.target = delta.target
     state.goal.comparative = state.goal.comparative or bool(_COMPARE.search(delta.objective or ""))
+    changed_hard_aspects: set[str] = set()
     for criterion in delta.criteria:
         existing = next((i for i, item in enumerate(state.goal.criteria) if item.id == criterion.id or (item.aspect, item.kind) == (criterion.aspect, criterion.kind)), None)
         if existing is None:
             state.goal.criteria.append(criterion)
+            if criterion.hard:
+                changed_hard_aspects.add(criterion.aspect)
         else:
+            previous = state.goal.criteria[existing]
             state.goal.criteria[existing] = criterion
+            if criterion.hard and criterion.value != previous.value:
+                changed_hard_aspects.add(criterion.aspect)
+    for need in state.information_needs:
+        if (
+            need.source == "POLICY"
+            and need.status == "RESOLVED"
+            and need.aspect in changed_hard_aspects
+        ):
+            state.reopen_need(
+                need,
+                reason="hard_constraint_changed",
+                turn=turn,
+            )
+            matching = next(
+                item for item in delta.criteria if item.aspect == need.aspect and item.hard
+            )
+            need.query_terms = list(
+                dict.fromkeys([*need.query_terms, matching.value[:160]])
+            )[-4:]
     state.goal.updated_turn = turn
     if plan.intent is not None:
-        state.intent = plan.intent
+        if plan.intent != "TRANSACTIONAL" or (
+            plan.explicit_action_request and plan.intent_confidence >= 0.7
+        ):
+            state.intent = plan.intent
+        else:
+            state.control.route_trace.append("intent_transactional_rejected:not_explicit")
     for candidate in plan.fact_candidates:
         state.control.route_trace.append(f"planner_fact_candidate:{candidate.entity}.{candidate.aspect}")
     state.control.route_trace.append(f"semantic_planner:{plan.model_route}")

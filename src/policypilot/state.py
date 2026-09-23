@@ -14,7 +14,14 @@ from tau2.data_model.message import APICompatibleMessage, SystemMessage
 IntentType = Literal["INFORMATIONAL", "STATUS_CHECK", "ELIGIBILITY_CHECK", "TRANSACTIONAL", "CORRECTION", "OTHER"]
 FactSource = Literal["USER", "TOOL", "POLICY"]
 NeedSource = Literal["USER", "POLICY", "TOOL", "UNKNOWN"]
-NeedStatus = Literal["OPEN", "RESOLVED"]
+NeedStatus = Literal[
+    "OPEN",
+    "PARTIALLY_COVERED",
+    "REOPENED",
+    "RESOLVED",
+    "NOT_APPLICABLE",
+    "EXHAUSTED",
+]
 NeedPurpose = Literal["PLANNING", "PRE_MUTATION", "VERIFICATION"]
 MutationStatus = Literal["PLANNED", "SENT", "CONFIRMED", "UNKNOWN", "FAILED"]
 CriterionKind = Literal["CONSTRAINT", "PREFERENCE", "OPTIMIZATION"]
@@ -90,6 +97,9 @@ class NeedCandidate(BaseModel):
     tool_arguments: dict[str, Any] = Field(default_factory=dict)
     purpose: NeedPurpose = "PLANNING"
     provenance: str = "deterministic"
+    query_id: str | None = None
+    query_objective: str | None = None
+    max_attempts: int | None = Field(default=None, ge=1, le=10)
 
 class InformationNeed(BaseModel):
     id: str
@@ -120,6 +130,10 @@ class InformationNeed(BaseModel):
     created_turn: int = 0
     updated_turn: int = 0
     purpose: NeedPurpose = "PLANNING"
+    query_id: str | None = None
+    query_objective: str | None = None
+    max_attempts: int | None = Field(default=None, ge=1, le=10)
+    status_reason: str | None = None
 
 class ToolCallRecord(BaseModel):
     name: str
@@ -261,7 +275,10 @@ class PolicyPilotState(BaseModel):
                 need.semantic_key
                 and existing.semantic_key == need.semantic_key
             ):
-                if existing.status == "RESOLVED" and need.status != "RESOLVED":
+                if existing.status in {"RESOLVED", "NOT_APPLICABLE"} and need.status not in {
+                    "RESOLVED",
+                    "NOT_APPLICABLE",
+                }:
                     return "already_satisfied"
                 if existing.critical and not need.critical:
                     need.critical = True
@@ -272,11 +289,16 @@ class PolicyPilotState(BaseModel):
         return "added"
 
     def open_needs(self, source: NeedSource | None = None) -> list[InformationNeed]:
-        result = [n for n in self.information_needs if n.status == "OPEN" and (source is None or n.source == source)]
+        active = {"OPEN", "PARTIALLY_COVERED", "REOPENED"}
+        result = [n for n in self.information_needs if n.status in active and (source is None or n.source == source)]
         return sorted(result, key=lambda n: (-n.critical, -n.priority, n.created_turn))
 
     def resolved_needs(self) -> list[InformationNeed]:
-        return [need for need in self.information_needs if need.status == "RESOLVED"]
+        return [
+            need
+            for need in self.information_needs
+            if need.status in {"RESOLVED", "NOT_APPLICABLE"}
+        ]
 
     @staticmethod
     def resolve_need(
@@ -288,6 +310,31 @@ class PolicyPilotState(BaseModel):
         need.status = "RESOLVED"
         need.evidence_refs = list(dict.fromkeys([*need.evidence_refs, *evidence_refs]))
         need.resolved_by_fact_id = fact_id
+        need.resolved_at = datetime.now(timezone.utc)
+        need.status_reason = "authoritative_evidence"
+
+    @staticmethod
+    def reopen_need(need: InformationNeed, *, reason: str, turn: int) -> None:
+        need.status = "REOPENED"
+        need.blocking = need.critical
+        need.actionable = True
+        need.exhausted = False
+        need.coverage = "PARTIAL" if need.evidence_refs else None
+        need.resolved_by_fact_id = None
+        need.resolved_at = None
+        need.status_reason = reason
+        need.updated_turn = turn
+
+    @staticmethod
+    def mark_not_applicable(
+        need: InformationNeed, *, reason: str, turn: int
+    ) -> None:
+        need.status = "NOT_APPLICABLE"
+        need.blocking = False
+        need.actionable = False
+        need.exhausted = False
+        need.status_reason = reason
+        need.updated_turn = turn
         need.resolved_at = datetime.now(timezone.utc)
 
     def add_error(self, error_type: str | PolicyPilotErrorType, message: str, *, source: str = "policypilot", retryable: bool = False, recovery_action: str | None = None, unsafe_to_retry: bool = False, attempts: int = 0) -> ErrorRecord:
@@ -361,6 +408,8 @@ class PolicyPilotState(BaseModel):
             if need.blocking:
                 need.blocking = False
                 need.exhausted = True
+                need.status = "EXHAUSTED"
+                need.status_reason = reason
                 need.updated_turn = len(self.messages)
                 released += 1
         if released:

@@ -229,7 +229,11 @@ def _bind_decision_retrieval(
             " ".join(query.casefold().split()).encode("utf-8")
         ).hexdigest()[:12]
         canonical_candidate = canonical_candidate.model_copy(
-            update={"scope": f"{target}:decision:{query_digest}"}
+            update={
+                "query_id": query_digest,
+                "query_objective": query,
+                "max_attempts": 1,
+            }
         )
         semantic_key = host.need_registry.semantic_key(canonical_candidate, state)
         need = next(
@@ -259,7 +263,7 @@ def _bind_decision_retrieval(
 
     # Direct Decision retrieval is an explicit signal that prior coverage was
     # insufficient. Reopen the canonical need instead of creating a parallel one.
-    need.status = "OPEN"
+    need.status = "REOPENED" if need.evidence_refs else "OPEN"
     need.critical = True
     need.blocking = True
     need.actionable = True
@@ -268,6 +272,7 @@ def _bind_decision_retrieval(
     need.resolved_by_fact_id = None
     need.resolved_at = None
     need.reason = "decision_requested_retrieval"
+    need.status_reason = "decision_identified_evidence_gap"
     need.query_terms = list(dict.fromkeys([*need.query_terms, query]))[-4:]
     need.updated_turn = len(state.messages)
     need.retrieval_attempts += 1

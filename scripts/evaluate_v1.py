@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-errors", type=int, default=10)
     parser.add_argument("--save-to", required=True)
     parser.add_argument(
+        "--retrieval-config",
+        default="local_hybrid",
+        help="banking_knowledge retrieval variant (default: local_hybrid)",
+    )
+    parser.add_argument(
         "--splits-file",
         type=Path,
         default=ROOT / "configs" / "evaluation_splits.json",
@@ -146,7 +151,7 @@ def main() -> None:
             or args.agent_model,
         },
         "user_model": args.user_model,
-        "retrieval_config": "bm25",
+        "retrieval_config": args.retrieval_config,
         "task_ids": task_ids,
         "selection": args.split or (args.selection if args.num_tasks else "explicit"),
         "evaluation_split": args.split,
@@ -172,7 +177,7 @@ def main() -> None:
             agent="policypilot",
             llm_agent=args.agent_model,
             llm_user=args.user_model,
-            retrieval_config="bm25",
+            retrieval_config=args.retrieval_config,
             task_ids=[task_id],
             seed=args.seed,
             max_steps=args.max_steps,

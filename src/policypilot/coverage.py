@@ -82,6 +82,8 @@ class EvidenceResolver:
             if evidence.tool_call_id and evidence.tool_call_id not in need.evidence_refs:
                 need.evidence_refs.append(evidence.tool_call_id)
             if coverage == "PARTIAL":
+                need.status = "PARTIALLY_COVERED"
+                need.status_reason = "evidence_partially_matches_need"
                 partial.append(need.id)
                 continue
             fact = next(
@@ -109,6 +111,12 @@ class EvidenceResolver:
         if trigger is not None:
             trigger_coverage = self.coverage(trigger, evidence)
             trigger.coverage = trigger_coverage
+            if trigger_coverage == "NO_MATCH" and trigger.query_id:
+                trigger.status = "EXHAUSTED"
+                trigger.exhausted = True
+                trigger.blocking = False
+                trigger.actionable = False
+                trigger.status_reason = "query_scoped_evidence_did_not_match"
         return {
             "coverage": trigger_coverage,
             "matched_need_ids": matched,

@@ -272,7 +272,7 @@ def test_partial_coverage_stays_open_and_records_coverage():
     )
 
     assert result["coverage"] == "PARTIAL"
-    assert need.status == "OPEN"
+    assert need.status == "PARTIALLY_COVERED"
     assert need.coverage == "PARTIAL"
 
 
@@ -355,7 +355,7 @@ def test_no_progress_recovery_releases_but_keeps_need_for_audit():
     ))
 
     assert value.release_stalled_blockers(reason="test") == 1
-    assert value.information_needs[0].status == "OPEN"
+    assert value.information_needs[0].status == "EXHAUSTED"
     assert value.information_needs[0].exhausted
     assert decision_ready(value)
 

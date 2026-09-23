@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run PolicyPilot on tau2 banking_knowledge tasks with BM25 retrieval."""
+"""Run PolicyPilot on tau2 banking_knowledge tasks."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-errors", type=int, default=10)
     parser.add_argument("--save-to", default="policypilot_v1")
     parser.add_argument("--max-concurrency", type=int, default=1)
+    parser.add_argument("--retrieval-config", default="local_hybrid")
     return parser.parse_args()
 
 
@@ -39,7 +40,7 @@ def main() -> None:
         agent="policypilot",
         llm_agent=args.agent_model,
         llm_user=args.user_model,
-        retrieval_config="bm25",
+        retrieval_config=args.retrieval_config,
         task_ids=args.task_ids,
         seed=args.seed,
         max_steps=args.max_steps,

@@ -1,6 +1,7 @@
 """Canonical, budgeted policy query construction."""
 from __future__ import annotations
 
+import re
 import uuid
 
 from policypilot.state import InformationNeed, PolicyPilotState
@@ -53,11 +54,20 @@ def build_retrieval_query(state: PolicyPilotState, need: InformationNeed, rewrit
         (need.scope or "").replace("_", " "),
         _ASPECT_QUERY.get(need.aspect, need.aspect.replace("_", " ")),
         *need.query_terms,
+        need.query_objective or "",
         *scoped_constraints,
         expansion,
         rewrite or "",
     ])
-    return " ".join(terms)[:500]
+    query = " ".join(terms)
+    # Internal lifecycle identifiers must never become retrieval vocabulary.
+    query = " ".join(
+        token
+        for token in query.split()
+        if not token.lower().startswith(("need:", "query:"))
+        and not re.fullmatch(r"[0-9a-f]{10,}", token.lower())
+    )
+    return query[:500]
 
 
 def build_retrieval_call(state: PolicyPilotState, need: InformationNeed, tool: Tool, rewrite: str | None = None) -> ToolCall:

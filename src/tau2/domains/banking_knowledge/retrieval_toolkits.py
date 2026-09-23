@@ -21,12 +21,16 @@ from tau2.domains.banking_knowledge.retrieval_mixins import (
     KBSearchBm25AllToolsMixin,
     KBSearchDenseAllToolsMixin,
     KBSearchMixin,
+    LocalHybridSearchMixin,
     ShellMixin,
 )
 from tau2.domains.banking_knowledge.tools import KnowledgeTools
 
 if TYPE_CHECKING:
     from tau2.domains.banking_knowledge.data_model import TransactionalDB
+    from tau2.domains.banking_knowledge.hybrid_retrieval import (
+        LocalHybridPolicyRetriever,
+    )
     from tau2.knowledge.pipeline import RetrievalPipeline
     from tau2.knowledge.sandbox_manager import SandboxManager
 
@@ -49,6 +53,18 @@ class KnowledgeToolsWithKBSearch(KBSearchMixin, KnowledgeTools):
     def __init__(self, db: "TransactionalDB", kb_pipeline: "RetrievalPipeline"):
         super().__init__(db)
         self._kb_pipeline = kb_pipeline
+
+
+class KnowledgeToolsWithLocalHybridSearch(LocalHybridSearchMixin, KnowledgeTools):
+    """Base banking tools plus the local rewrite/retrieve/rerank chain."""
+
+    def __init__(
+        self,
+        db: "TransactionalDB",
+        hybrid_retriever: "LocalHybridPolicyRetriever",
+    ):
+        super().__init__(db)
+        self._hybrid_retriever = hybrid_retriever
 
 
 class KnowledgeToolsWithGrep(GrepMixin, KnowledgeTools):

@@ -15,6 +15,7 @@ Replaces the 18 ``RetrievalConfig`` subclasses in
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +36,7 @@ from tau2.domains.banking_knowledge.retrieval_toolkits import (
     KnowledgeToolsWithGrep,
     KnowledgeToolsWithKBSearch,
     KnowledgeToolsWithKBSearchAndGrep,
+    KnowledgeToolsWithLocalHybridSearch,
     KnowledgeToolsWithShell,
 )
 from tau2.domains.banking_knowledge.tools import KnowledgeTools
@@ -322,6 +324,20 @@ class ShellSpec:
     file_format: str = "md"
 
 
+@dataclass
+class LocalHybridSpec:
+    """Configuration for the local chunk rewrite/retrieve/rerank chain."""
+
+    model: str = "qwen3-embedding:0.6b"
+    endpoint: str = "http://127.0.0.1:11434"
+    candidate_k: int = 30
+    top_k: int = 5
+    chunks_per_document: int = 2
+    rerank_candidate_k: int = 20
+    model_rerank_weight: float = 0.35
+    reranker_model_path: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Reusable prompt builders
 # ---------------------------------------------------------------------------
@@ -402,6 +418,7 @@ class RetrievalVariant:
     kb_search_dense: Optional[PipelineSpec] = None  # AllTools: dense KB_search_dense
     grep: Optional[GrepSpec] = None  # None -> no grep tool
     shell: Optional[ShellSpec] = None  # None -> no shell tool
+    local_hybrid: Optional[LocalHybridSpec] = None
     supports_top_k: bool = False
 
 
@@ -432,6 +449,13 @@ def all_tools_variant(
 # ---------------------------------------------------------------------------
 
 RETRIEVAL_VARIANTS: Dict[str, RetrievalVariant] = {
+    "local_hybrid": RetrievalVariant(
+        name="local_hybrid",
+        prompt_template=PROMPTS_DIR / "classic_rag_qwen_no_grep.md",
+        build_prompt=standard_prompt,
+        local_hybrid=LocalHybridSpec(),
+        supports_top_k=True,
+    ),
     "no_knowledge": RetrievalVariant(
         name="no_knowledge",
         prompt_template=PROMPTS_DIR / "no_knowledge.md",
@@ -669,6 +693,8 @@ def resolve_variant(
         variant.kb_search_bm25.top_k = top_k
     if top_k is not None and variant.kb_search_dense is not None:
         variant.kb_search_dense.top_k = top_k
+    if top_k is not None and variant.local_hybrid is not None:
+        variant.local_hybrid.top_k = top_k
     if grep_top_k is not None and variant.grep is not None:
         variant.grep.top_k = grep_top_k
     if case_sensitive is not None and variant.grep is not None:
@@ -754,6 +780,50 @@ def build_tools(
             calls should still be logged to ``agent_discoverable_tools``
             for eval (typically the set required by the golden trajectory).
     """
+    if variant.local_hybrid is not None:
+        from tau2.domains.banking_knowledge.hybrid_retrieval import (
+            LocalHybridPolicyRetriever,
+        )
+        from tau2.domains.banking_knowledge.local_reranker import QwenLocalReranker
+
+        spec = variant.local_hybrid
+        reranker_path = Path(
+            spec.reranker_model_path
+            or os.environ.get("POLICYPILOT_RERANKER_MODEL_PATH", "")
+            or Path.home()
+            / "Desktop"
+            / "qwen-api"
+            / "models"
+            / "qwen3-reranker-0.6b"
+        )
+        if not reranker_path.exists():
+            raise FileNotFoundError(
+                "local_hybrid requires Qwen3-Reranker-0.6B; set "
+                f"POLICYPILOT_RERANKER_MODEL_PATH (looked at {reranker_path})"
+            )
+        vector_root = (
+            DATA_DIR
+            / "tau2"
+            / "domains"
+            / "banking_knowledge"
+            / "vector_index"
+        )
+        retriever = LocalHybridPolicyRetriever(
+            chunks_path=vector_root / "chunks.jsonl",
+            index_dir=vector_root / "qwen3-embedding-0.6b",
+            endpoint=spec.endpoint,
+            model=spec.model,
+            candidate_k=spec.candidate_k,
+            top_k=spec.top_k,
+            chunks_per_document=spec.chunks_per_document,
+            reranker=QwenLocalReranker(reranker_path),
+            rerank_candidate_k=spec.rerank_candidate_k,
+            model_rerank_weight=spec.model_rerank_weight,
+        )
+        tools = KnowledgeToolsWithLocalHybridSearch(db, retriever)
+        tools.set_read_log_allowlist(read_log_allowlist)
+        return tools
+
     has_all_tools = (
         variant.kb_search_bm25 is not None
         and variant.kb_search_dense is not None

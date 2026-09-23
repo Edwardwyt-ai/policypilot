@@ -61,7 +61,8 @@ class NeedManager:
     def semantic_key(cls, candidate: NeedCandidate, state: PolicyPilotState | None = None) -> str:
         value = state or PolicyPilotState(system_messages=[])
         entity, aspect, scope, _ = cls._normalized_candidate(value, candidate)
-        return f"{candidate.source}|{entity}|{aspect}|{scope or '*'}"
+        base = f"{candidate.source}|{entity}|{aspect}|{scope or '*'}"
+        return f"{base}|query:{candidate.query_id}" if candidate.query_id else base
 
     @staticmethod
     def _blocking(
@@ -124,6 +125,8 @@ class NeedManager:
                 rejected += 1
                 continue
             key = f"{candidate.source}|{entity}|{aspect}|{normalized_scope or '*'}"
+            if candidate.query_id:
+                key = f"{key}|query:{candidate.query_id}"
             blocking = self._blocking(
                 state,
                 candidate,
@@ -152,7 +155,7 @@ class NeedManager:
                 None,
             )
             if existing is not None:
-                if existing.status == "RESOLVED":
+                if existing.status in {"RESOLVED", "NOT_APPLICABLE"}:
                     satisfied += 1
                 else:
                     deduplicated += 1
@@ -231,6 +234,9 @@ class NeedManager:
                 purpose=candidate.purpose,
                 aspect_provenance=aspect_provenance,
                 provenance=candidate.provenance,
+                query_id=candidate.query_id,
+                query_objective=candidate.query_objective,
+                max_attempts=candidate.max_attempts,
             )
             if covered_by:
                 state.resolve_need(need, evidence_refs=covered_by)

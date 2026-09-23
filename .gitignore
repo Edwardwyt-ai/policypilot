@@ -205,6 +205,7 @@ data-*-of-*.arrow
 src/experiments/model_training/data/full-v1/*/cache-*.arrow
 src/experiments/model_training/data/full-v1/*/data-*.arrow
 data/.embeddings_cache/
+data/tau2/domains/banking_knowledge/vector_index/
 
 # Large JSONL training files
 src/experiments/model_training/data/train_full-v1.jsonl
@@ -234,3 +235,4 @@ data/simulations/.credentials/
 data/policypilot_memory/
 data/policypilot_checkpoints/
 .pytest-tmp-*/
+.codex_pytest_tmp/

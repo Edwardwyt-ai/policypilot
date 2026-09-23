@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from policypilot.config import PolicyPilotConfig
 from policypilot.context_budget import CHANNEL_BUDGETS, bound_channel, budget_manifest
 from policypilot.provenance import ContextManifest
+from policypilot.requirements import render_requirement_gap_context
 from policypilot.state import PolicyPilotState
 from tau2.data_model.message import (
     APICompatibleMessage,
@@ -108,6 +109,7 @@ def _summary(state: PolicyPilotState, tools: list[Tool], config: PolicyPilotConf
     sections = [
         "<policypilot_context>",
         f"GOAL\nobjective={goal.objective or 'None'}\ntarget={goal.target or 'None'}\ncomparative={goal.comparative}\n{criteria}",
+        bound_channel("needs", render_requirement_gap_context(state)),
         f"INTENT\n{state.intent}",
         f"OPEN INFORMATION NEEDS\n{needs}",
         f"RELEVANT FACTS\n{fact_text}",

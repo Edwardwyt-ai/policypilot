@@ -9,6 +9,9 @@ the required attributes (e.g., _kb_pipeline, _grep_pipeline, _sandbox)
 during its own __init__.
 """
 
+from tau2.domains.banking_knowledge.hybrid_retrieval import (
+    format_hybrid_search_response,
+)
 from tau2.environment.toolkit import ToolKitType, ToolType, is_tool
 
 
@@ -72,6 +75,22 @@ class KBSearchMixin(metaclass=ToolKitType):
         """
         # TODO: clean up knowledge retrieval pipelines to return structure results
         return _run_kb_search(self._kb_pipeline, query)
+
+
+class LocalHybridSearchMixin(metaclass=ToolKitType):
+    """Constraint-preserving chunk retrieval backed by the local Qwen index."""
+
+    @is_tool(ToolType.READ)
+    def KB_search(self, query: str) -> str:
+        """Rewrite and search policy chunks with BM25, dense retrieval, and reranking.
+
+        Args:
+            query: Need-driven query including all explicit user constraints.
+
+        Returns:
+            Reranked source documents with the most relevant policy excerpts.
+        """
+        return format_hybrid_search_response(self._hybrid_retriever.search(query))
 
 
 class GrepMixin(metaclass=ToolKitType):

@@ -76,7 +76,7 @@ def test_decision_retrieval_reopens_and_binds_resolved_need(agent_factory):
     agent._record_valid_tool_calls(proposal, state)
 
     assert result.allowed
-    assert need.status == "OPEN"
+    assert need.status == "REOPENED"
     assert need.blocking
     assert need.coverage == "PARTIAL"
     assert need.retrieval_attempts == 2

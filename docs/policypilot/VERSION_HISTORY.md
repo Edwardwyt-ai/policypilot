@@ -21,6 +21,54 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Decision-Closed Need Lifecycle V1
+
+- Date: 2026-09-21
+- Status: implemented and full-unit-verified; benchmark rerun pending
+- Parent: Unreleased - Bounded Decision Retrieval Authority V1
+
+### Architecture
+
+- Kept the single Need Registry and upgraded Need lifecycle semantics with
+  `PARTIALLY_COVERED`, `REOPENED`, `NOT_APPLICABLE`, and `EXHAUSTED` states.
+- Added derived Requirement, candidate/aspect Coverage, and Retrieval Gap views.
+  They are computed from `StructuredGoal` and `InformationNeed`; no parallel
+  mutable coverage matrix was added to `PolicyPilotState`.
+- Stabilized Goal target updates and separated action mentions/questions from
+  explicit transactional authorization.
+- Replaced query-scoped business-scope mutation with dedicated `query_id` and
+  `query_objective` fields. Internal lifecycle IDs are excluded from KB queries.
+- Bounded Semantic Planner output to six Need deltas per call. Its compact input
+  remains bounded to eight active Needs, six resolved Needs, two evidence
+  summaries, and truncated user/skill context.
+
+### Behavior
+
+- A new or changed hard constraint can reopen matching resolved Policy Needs.
+- Partial evidence remains an active Retrieval Gap rather than completing a Need.
+- A non-applicable customer identifier can be closed without inventing a user ID
+  when the user explicitly says they are new or have no account and no live
+  status/mutation is requested.
+- Decision-authored corrective retrieval retains the business scope, receives a
+  one-attempt query lifecycle, and cannot leak query hashes into later searches.
+- Decision context receives a bounded Requirement/Gap summary; the lightweight
+  planner does not receive the full derived Coverage view.
+
+### Verification Evidence
+
+- Targeted Requirement/Need/Guard regression: `56 passed`.
+- Full PolicyPilot regression: `105 passed`, with two unrelated host warnings.
+- Ruff and PolicyPilot compile checks passed.
+- No API-backed benchmark was run.
+
+### Known Issues And Next Decision
+
+- Candidate-level coverage quality still depends on specific candidate entities
+  being present in registered Needs; this change does not introduce a new entity
+  extraction model or Hybrid RAG layer.
+- After unit verification, rerun `task_001` only with explicit approval and compare
+  intent stability, target stability, query text, Need growth, and action outcome.
+
 ## Unreleased - Bounded Decision Retrieval Authority V1
 
 - Date: 2026-09-21
@@ -471,6 +519,234 @@ and their results were recorded.
 - Before assigning a release number, run the full suite, focused architecture
   tests, task_001, task_010, and the current V1 smoke evaluation.
 - Record metrics here or link immutable result artifacts from this entry.
+
+## Unreleased - Local Policy Chunking V1
+
+- Date: 2026-09-22
+- Status: verified (offline chunking and retrieval regression)
+- Parent: PolicyPilot V1 local vector retrieval preparation
+
+### Architecture
+
+- Added deterministic, Markdown-aware policy document chunking with stable IDs,
+  source lineage, heading-path metadata, hashes, and bounded overlap.
+- Added an offline CLI that exports retrieval-ready JSONL plus a build manifest.
+- The derived local vector-index directory is excluded from Git.
+
+### Behavior And Compatibility
+
+- Existing KnowledgeBase loading, BM25/dense retrieval, tau2/tau3 execution, and
+  evaluator behavior are unchanged.
+- No embedding API is called by the chunking step. The output is preparation for
+  a later local Qwen embedding/indexing step.
+
+### Verification Evidence
+
+- Chunking unit tests: 5 passed.
+- Existing banking retrieval system tests: 142 passed.
+- Ruff and Python compile checks: passed.
+- Generated 1,029 unique chunks from all 698 source documents.
+- Chunk character distribution: minimum 262, median 887, maximum 1,426;
+  zero empty chunks, zero chunks above the 1,600-character hard limit, and
+  zero chunks ending with an orphan Markdown heading.
+- Embedding generation and benchmark evaluation were intentionally not run.
+
+### Known Issues And Next Decision
+
+- The runtime still retrieves whole source documents until the chunk index is
+  explicitly integrated.
+- Next step: embed `chunks.jsonl` with the local Qwen embedding model and add a
+  chunk-to-source aggregation policy before enabling it in evaluation.
+
+## Unreleased - Local Qwen Policy Embeddings V1
+
+- Date: 2026-09-22
+- Status: verified (local full-index generation)
+- Parent: Unreleased - Local Policy Chunking V1
+
+### Architecture
+
+- Added a resumable Ollama embedding pipeline backed by NumPy memmap storage.
+- Document embedding input contains the source title, compact section paths,
+  and chunk text; full metadata is not injected into model input.
+- Added row-aligned chunk metadata and content/file hashes for reproducibility.
+
+### Behavior And Compatibility
+
+- Uses local `qwen3-embedding:0.6b` through Ollama's `/api/embed` endpoint.
+- Existing retrieval and Agent runtime remain unchanged until this index is
+  explicitly wired into a retrieval variant.
+- No paid API is called.
+
+### Verification Evidence
+
+- Local endpoint probe returned 1,024 dimensions.
+- Vectorization tests: 2 passed; chunking and vectorization combined: 7 passed.
+- Ruff and Python compile checks: passed.
+- Embedded all 1,029 chunks as a 1,029 x 1,024 float32 matrix in 58.693
+  seconds using 225,370 model input tokens.
+- Final vector file size: 4,214,912 bytes; metadata size: 510,854 bytes.
+- Independent verification confirmed finite values, unique row alignment, and
+  matching chunk IDs. Vector norms ranged from 0.9999993 to 1.0000007.
+- Basic semantic probes retrieved relevant policy documents at rank one for
+  personal savings opening requirements and no-annual-fee card handling.
+- No benchmark evaluation or paid API was used.
+
+### Known Issues And Next Decision
+
+- A runtime query embedder, hybrid lexical/vector fusion, and chunk-to-document
+  result aggregation policy are still required before this index can serve
+  PolicyPilot retrieval. Pure dense Top-K showed occasional semantically close
+  but operationally imprecise candidates.
+
+## Unreleased - Local Hybrid Retrieval V1
+
+- Date: 2026-09-22
+- Status: verified (unit, regression, and real local-index retrieval)
+- Parent: Unreleased - Local Qwen Policy Embeddings V1
+
+### Architecture
+
+- Added a two-stage constraint-preserving query path: PolicyPilot's existing
+  Need-derived query skeleton followed by provider-specific sparse/dense forms.
+- Added chunk-level BM25 and local Qwen dense candidate retrieval, reciprocal
+  rank signals, feature reranking, and chunk-to-source-document aggregation.
+- Added a `local_hybrid` retrieval variant that exposes the existing
+  `KB_search` tool contract, so PolicyPilot Evidence and Need handling remain
+  unchanged.
+- Added a standalone local-search CLI for retrieval diagnosis without running a
+  benchmark task.
+
+### Behavior And Compatibility
+
+- Query rewrite retains original text, negated/comparative phrases, numbers,
+  and significant anchor terms.
+- Reranking combines dense similarity, normalized BM25, anchor coverage, title
+  coverage, exact-phrase coverage, and reciprocal-rank evidence.
+- Existing BM25 and cloud embedding variants remain available. Evaluation
+  scripts accept `--retrieval-config`; their default is now `local_hybrid`.
+- tau2/tau3 orchestration, tool execution boundaries, PolicyPilot state, and
+  evaluator behavior are unchanged.
+
+### Verification Evidence
+
+- Hybrid/chunk/vector unit tests plus existing retrieval regression: 153 passed.
+- Ruff and Python compile checks: passed.
+- Real 1,029-chunk index queries verified constraint-preserving rewrite, local
+  query embedding, BM25+dense candidate fusion, reranking, source aggregation,
+  and compatibility with the tau2 `KB_search` tool output contract.
+- Personal-card scope conflict was detected during verification and fixed with
+  a generic mutually-exclusive-scope penalty. The corrected personal card query
+  ranked a personal card first instead of a business card.
+- A debit-card PIN fraud/unlock query ranked the dedicated internal PIN Lock
+  Investigation Protocol first after title coverage and aggregation tuning.
+- Warm local query latency was approximately 0.38-0.43 seconds; dense query
+  embedding dominated latency, while sparse retrieval and reranking each took
+  roughly 1-3 milliseconds.
+- No benchmark task or paid API was run.
+
+### Known Issues And Next Decision
+
+- The reranker is a deterministic feature reranker, not a cross-encoder model.
+- Benchmark evaluation is required before comparing task reward, retrieval
+  count, latency, or cost against the BM25 baseline.
+
+## Unreleased - Local Qwen Reranker V1
+
+- Date: 2026-09-23
+- Status: implemented and locally evaluated
+- Parent: Unreleased - Local Hybrid Retrieval V1
+
+### Architecture
+
+- Added a lazy-loaded `Qwen3-Reranker-0.6B` adapter using the official
+  yes/no next-token relevance probability.
+- The local hybrid retriever now reranks its first 20 chunk candidates and
+  combines model relevance (35%) with the existing retrieval feature score
+  (65%) before document aggregation.
+- Added deterministic retrieval metrics and an offline evaluation script that
+  keeps benchmark `required_documents` strictly evaluator-only.
+
+### Behavior And Compatibility
+
+- The model loads only when reranking is requested; unit tests use a fake
+  reranker and do not allocate GPU memory.
+- Default inference uses batch size 2 and a 1,536-token limit. Batch size 8 at
+  2,048 tokens exceeded the RTX 3070 Laptop GPU's 8 GB memory on long task
+  scenarios.
+- `local_hybrid` retains the existing `KB_search` tool contract. No tau2/tau3
+  orchestration or evaluator semantics changed.
+
+### Verification Evidence
+
+- Deterministic reranker and metric unit tests: 7 passed; Ruff passed.
+- Final PolicyPilot tests: 105 passed. Final banking knowledge tests: 498
+  passed and 85 skipped. The registry table now includes `local_hybrid` and
+  the pre-existing `alltools-qwen` test cases.
+- Local evaluation report:
+  `data/analyses/retrieval_quality_20260923_145751.json`.
+- Evaluation used seed 0, 10 sampled required-document titles, the same 10
+  documents' first 20 content words, and 10 sampled task scenarios: 30 queries
+  total. Corpus labels came from 218 unique required documents across 97 task
+  files; labels were read only after retrieval.
+- Feature-only Recall@5 was 1.000 for title and content queries and 0.1606
+  macro / 0.1058 micro for task scenarios. Conservative Qwen fusion retained
+  1.000 title/content Recall@5 and produced 0.1587 macro / 0.1058 micro task
+  Recall@5.
+- Task-scenario mean latency increased from 0.704 seconds to 6.368 seconds;
+  Qwen model reranking accounted for 5.560 seconds on average.
+- An earlier 90% model-weight experiment degraded title Recall@5 to 0.900 and
+  task HitRate@5 from 1.000 to 0.600, so that weight was rejected.
+- All inference was local; no paid API and no Agent benchmark run was used.
+
+### Known Issues And Next Decision
+
+- Raw task scenarios are long simulator scripts rather than the concise
+  Need-derived queries used by PolicyPilot, so task-scenario retrieval is a
+  stress proxy and not an Agent reward estimate.
+- This small deterministic sample shows no task-level Recall@5 gain and a large
+  latency cost. Before making reranking mandatory in broad evaluations, test
+  recorded real retrieval queries and consider reducing rerank candidate count
+  or enabling reranking only for ambiguous candidate sets.
+
+## Unreleased - Retrieval Mode Comparison
+
+- Date: 2026-09-23
+- Status: offline evaluation complete
+- Parent: Unreleased - Local Qwen Reranker V1
+
+### Architecture
+
+- Added an evaluator-only comparison of BM25 keyword retrieval, local Qwen
+  dense retrieval, and the existing feature-hybrid retrieval.
+- All modes share the same queries, chunk index, candidate limit, document
+  deduplication, Top-5 cutoff, and evaluator-only gold labels. Model reranking
+  is disabled for all three modes.
+
+### Verification Evidence
+
+- Report: `data/analyses/retrieval_modes_20260923_154028.json`.
+- Sample: seed 0; 10 document titles, 10 first-20-word content snippets, and
+  10 task scenarios; 104 task-scenario gold references in total.
+- Task-scenario Macro Recall@5: BM25 0.0143, dense 0.2800, hybrid 0.1606.
+- Task-scenario Micro Recall@5: BM25 0.0096 (1/104), dense 0.1923
+  (20/104), hybrid 0.1058 (11/104).
+- Task-scenario HitRate@5: BM25 0.10, dense 1.00, hybrid 1.00.
+- Task-scenario mean latency: BM25 475.5 ms, dense 2,414.9 ms, hybrid
+  2,911.9 ms. Long task text makes BM25 query scoring much slower than its
+  6-14 ms title/snippet latency.
+- Title/content Recall@5 was 1.00/1.00 for BM25, 1.00/0.90 for dense, and
+  1.00/1.00 for hybrid.
+
+### Known Issues And Next Decision
+
+- Raw task scenarios contain simulator instructions and are not the concise
+  Need-derived queries used by the running Agent. They are useful as a stress
+  comparison but do not estimate end-to-end task reward.
+- Dense retrieval preserved task-scenario semantic relevance better than the
+  current hybrid feature reranker. Evaluate recorded real Agent queries before
+  retuning hybrid weights; anchor and lexical coverage should not dominate on
+  long, instruction-heavy queries.
 
 ## Entry Template
 

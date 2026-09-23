@@ -55,7 +55,7 @@ class NeedResolver:
 
     def resolve(self, state: PolicyPilotState) -> None:
         for need in state.information_needs:
-            if need.status == "RESOLVED":
+            if need.status in {"RESOLVED", "NOT_APPLICABLE", "EXHAUSTED"}:
                 continue
             fact = next((fact for fact in reversed(state.facts) if fact.entity == need.entity and fact.aspect == need.aspect and self._authoritative_for(need, fact.source) and (not need.evidence_refs or fact.evidence_ref in need.evidence_refs)), None)
             if fact is None:
@@ -129,7 +129,7 @@ def invalidate_tool_facts(state: PolicyPilotState, resource_tags: Iterable[str])
 
 def is_blocking_actionable(need: InformationNeed) -> bool:
     return (
-        need.status == "OPEN"
+        need.status in {"OPEN", "PARTIALLY_COVERED", "REOPENED"}
         and need.critical
         and need.blocking
         and need.actionable
@@ -144,13 +144,21 @@ def select_next_blocking_need(
     limits = config or PolicyPilotConfig()
     eligible = []
     for need in state.open_needs():
+        attempt_limit = (
+            need.max_attempts
+            if need.max_attempts is not None
+            else limits.max_retrieval_attempts_per_semantic_need
+        )
         if (
             need.source == "POLICY"
             and need.retrieval_attempts
-            >= limits.max_retrieval_attempts_per_semantic_need
+            >= attempt_limit
         ):
             need.exhausted = True
             need.blocking = False
+            need.actionable = False
+            need.status = "EXHAUSTED"
+            need.status_reason = "retrieval_attempt_limit_reached"
         if is_blocking_actionable(need):
             eligible.append(need)
     return next(iter(eligible), None)

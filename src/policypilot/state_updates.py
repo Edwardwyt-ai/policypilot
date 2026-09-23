@@ -12,11 +12,37 @@ from policypilot.state import FactRecord, IntentType, NeedCandidate, PolicyPilot
 from policypilot.taxonomy import canonicalize_aspect
 
 
+def is_explicit_action_request(content: str) -> bool:
+    lowered = content.lower()
+    action = re.search(
+        r"\b(close|change|freeze|replace|activate|transfer|submit|retry|apply|dispute|cancel|update)\b|关闭|修改|冻结|提交|重试|取消",
+        lowered,
+    )
+    question = "?" in content or bool(
+        re.search(r"\b(should|could|would|can|may|what|why|how|whether)\b|是否|能否|可以吗|怎么办", lowered)
+    )
+    if not action or question:
+        return False
+    return bool(
+        re.search(
+            r"\b(please|go ahead|proceed|do it|yes,?\s+(?:apply|submit|proceed)|i (?:want|need) you to)\b|请(?:帮我)?|现在(?:帮我)?|确认(?:申请|提交)",
+            lowered,
+        )
+    )
+
+
 def classify_intent(content: str) -> IntentType:
     lowered = content.lower()
     if re.search(r"\b(actually|instead|correction|i mean)\b|更正|改成", lowered):
         return "CORRECTION"
-    if re.search(r"\b(close|change|freeze|replace|activate|transfer|submit|retry|apply|dispute|cancel|update)\b|关闭|修改|冻结|提交|重试|取消", lowered):
+    action = re.search(
+        r"\b(close|change|freeze|replace|activate|transfer|submit|retry|apply|dispute|cancel|update)\b|关闭|修改|冻结|提交|重试|取消",
+        lowered,
+    )
+    question = "?" in content or bool(
+        re.search(r"\b(should|could|would|can|may|what|why|how|whether)\b|是否|能否|可以吗|怎么办", lowered)
+    )
+    if action and (is_explicit_action_request(content) or not question):
         return "TRANSACTIONAL"
     if re.search(r"\b(eligible|eligibility|qualify|can i)\b|资格|符合条件", lowered):
         return "ELIGIBILITY_CHECK"
@@ -86,7 +112,7 @@ def seed_information_need_candidates(
             source="POLICY",
             criticality="CRITICAL" if criterion.hard else "OPTIONAL",
             reason_code="explicit_hard_constraint" if criterion.hard else "decision_criterion",
-            query_terms=[criterion.aspect.replace("_", " ")],
+            query_terms=[criterion.aspect.replace("_", " "), criterion.value[:160]],
         ))
     if goal.comparative and goal.target:
         candidates.append(NeedCandidate(
@@ -239,10 +265,33 @@ def update_facts_from_tool_evidence(state: PolicyPilotState, evidence: EvidenceR
 
 
 def resolve_user_needs(state: PolicyPilotState) -> None:
+    latest = next(
+        (
+            str(fact.value)
+            for fact in reversed(state.facts)
+            if fact.entity == "user" and fact.aspect == "utterance"
+        ),
+        "",
+    )
     for need in state.open_needs("USER"):
         fact = state.get_fact(need.aspect, need.entity)
         if need.aspect == "customer_identifier" and fact is None:
             fact = state.get_fact("user_id", "user") or state.get_fact("email", "user") or state.get_fact("phone_number", "user")
         if fact:
             state.resolve_need(need, evidence_refs=[fact.evidence_ref] if fact.evidence_ref else [], fact_id=fact.id)
+            state.control.needs_resolved_count += 1
+        elif (
+            need.aspect == "customer_identifier"
+            and state.intent not in {"STATUS_CHECK", "TRANSACTIONAL"}
+            and re.search(
+                r"\b(?:new customer|not a customer|no (?:account|user id|customer id)|don't have (?:an? )?(?:account|user id|customer id))\b|新客户|没有(?:账户|账号|用户编号|客户编号)",
+                latest,
+                re.I,
+            )
+        ):
+            state.mark_not_applicable(
+                need,
+                reason="user_has_no_applicable_customer_identifier",
+                turn=len(state.messages),
+            )
             state.control.needs_resolved_count += 1

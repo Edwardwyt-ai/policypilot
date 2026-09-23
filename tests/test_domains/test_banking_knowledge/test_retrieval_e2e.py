@@ -35,6 +35,10 @@ requires_all_tools_deps = pytest.mark.skipif(
     not os.environ.get("OPENAI_API_KEY") or shutil.which("srt") is None,
     reason="alltools requires OPENAI_API_KEY and sandbox-runtime (srt)",
 )
+requires_all_tools_qwen_deps = pytest.mark.skipif(
+    not os.environ.get("OPENROUTER_API_KEY") or shutil.which("srt") is None,
+    reason="alltools-qwen requires OPENROUTER_API_KEY and sandbox-runtime (srt)",
+)
 DOCUMENTS: List[Dict[str, Any]] = [
     {
         "id": "doc_mortgage",
@@ -105,6 +109,7 @@ def _make_mock_kb():
 
 # (variant_name, expected_tools, api_gate)
 _ALL_VARIANTS = [
+    ("local_hybrid", {"KB_search"}, None),
     ("no_knowledge", set(), None),
     ("full_kb", set(), None),
     ("golden_retrieval", set(), None),
@@ -128,6 +133,11 @@ _ALL_VARIANTS = [
         {"KB_search_bm25", "KB_search_dense", "shell"},
         "all_tools",
     ),
+    (
+        "alltools-qwen",
+        {"KB_search_bm25", "KB_search_dense", "shell"},
+        "all_tools_qwen",
+    ),
 ]
 
 
@@ -140,6 +150,8 @@ def _api_mark(gate):
         return requires_sandbox_runtime
     if gate == "all_tools":
         return requires_all_tools_deps
+    if gate == "all_tools_qwen":
+        return requires_all_tools_qwen_deps
     return pytest.mark.skipif(False, reason="")
 
 
@@ -233,7 +245,7 @@ class TestAllVariantsToolInvocation:
     _KB_SEARCH_VARIANTS = [
         pytest.param(v, marks=_api_mark(g))
         for v, t, g in _ALL_VARIANTS
-        if "KB_search" in t
+        if "KB_search" in t and v != "local_hybrid"
     ]
     _GREP_VARIANTS = [
         pytest.param(v, marks=_api_mark(g)) for v, t, g in _ALL_VARIANTS if "grep" in t
