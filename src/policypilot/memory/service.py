@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 
 from policypilot.memory.context import render_memory_context
+from policypilot.memory.embeddings import EpisodeEmbedder
 from policypilot.memory.episodic import (
     EpisodeFormer,
     EpisodeRetriever,
@@ -11,7 +12,12 @@ from policypilot.memory.episodic import (
     LLMEpisodeExtractor,
     LocalEpisodeEmbedder,
 )
-from policypilot.memory.models import MemoryMetrics, MemorySnapshot, PreferenceCandidate
+from policypilot.memory.models import (
+    EpisodeMemory,
+    MemoryMetrics,
+    MemorySnapshot,
+    PreferenceCandidate,
+)
 from policypilot.memory.profile import ProfileMemoryManager
 from policypilot.memory.store import JsonMemoryStore
 from policypilot.state import PolicyPilotState
@@ -19,10 +25,11 @@ from tau2.data_model.message import AssistantMessage
 
 
 class MemoryService:
-    def __init__(self, store: JsonMemoryStore, profile_manager: ProfileMemoryManager, *, max_recalled_episodes: int = 3, max_context_chars: int = 1800, episode_extractor: LLMEpisodeExtractor | None = None):
+    def __init__(self, store: JsonMemoryStore, profile_manager: ProfileMemoryManager, *, max_recalled_episodes: int = 3, max_context_chars: int = 1800, episode_extractor: LLMEpisodeExtractor | None = None, episode_embedder: EpisodeEmbedder | LocalEpisodeEmbedder | None = None):
         self.store = store
         self.profile_manager = profile_manager
-        self.retriever = EpisodeRetriever()
+        self.episode_embedder = episode_embedder or LocalEpisodeEmbedder()
+        self.retriever = EpisodeRetriever(self.episode_embedder)
         self.former = EpisodeFormer()
         self.episode_extractor = episode_extractor
         self.max_recalled_episodes = max_recalled_episodes
@@ -54,6 +61,7 @@ class MemoryService:
         self.metrics.profile_reads += 1
         self.metrics.episode_reads += 1
         self.snapshot = MemorySnapshot(profile=profile, episodes=self.retriever.retrieve(episodes, query, limit=self.max_recalled_episodes))
+        self._record_embedding_batch(self.retriever.last_embedding_batch)
         self.metrics.episode_retrievals += len(self.snapshot.episodes)
         if self.pending_candidates:
             self._apply(self.pending_candidates)
@@ -95,6 +103,7 @@ class MemoryService:
             self.metrics.storage_failures += 1
             return
         self.snapshot.episodes = self.retriever.retrieve(episodes, query, limit=self.max_recalled_episodes)
+        self._record_embedding_batch(self.retriever.last_embedding_batch)
         self.metrics.episode_retrievals += len(self.snapshot.episodes)
 
     def recall(self, query: str, *, trigger: str) -> None:
@@ -158,19 +167,10 @@ class MemoryService:
             )
         if episode is None:
             return
-        episode.embedding = LocalEpisodeEmbedder.embed(
-            " ".join(
-                [
-                    episode.situation,
-                    episode.goal_pattern,
-                    episode.objective,
-                    episode.target or "",
-                    episode.lesson,
-                ]
-            )
-        )
-        episode.embedding_model = LocalEpisodeEmbedder.model
-        episode.embedding_version = LocalEpisodeEmbedder.version
+        batch = self._embed_episode(episode)
+        episode.embedding = batch.vectors[0]
+        episode.embedding_model = batch.model
+        episode.embedding_version = batch.version
         try:
             self.store.upsert_episode(episode)
         except (OSError, ValueError):
@@ -178,3 +178,18 @@ class MemoryService:
             return
         self.metrics.episode_writes += 1
         self.episode_finalized = True
+
+    def _embed_episode(self, episode: EpisodeMemory):
+        text = EpisodeRetriever._episode_text(episode)
+        batch = self.episode_embedder.embed([text])
+        self._record_embedding_batch(batch)
+        return batch
+
+    def _record_embedding_batch(self, batch) -> None:
+        if batch is None:
+            return
+        self.metrics.embedding_calls += 1
+        self.metrics.embedding_failures += int(batch.failed)
+        self.metrics.embedding_fallbacks += int(batch.fallback_used)
+        self.metrics.embedding_prompt_tokens += batch.prompt_tokens
+        self.metrics.embedding_latency_ms += batch.latency_ms

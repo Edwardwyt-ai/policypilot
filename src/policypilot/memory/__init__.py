@@ -1,4 +1,5 @@
 """PolicyPilot Memory V1 public interfaces."""
+from policypilot.memory.embeddings import EmbeddingBatch, OllamaEpisodeEmbedder
 from policypilot.memory.episodic import EpisodeFormer, EpisodeRetriever
 from policypilot.memory.models import (
     EpisodeMemory,
@@ -17,4 +18,21 @@ from policypilot.memory.profile import (
 from policypilot.memory.service import MemoryService
 from policypilot.memory.store import JsonMemoryStore
 
-__all__ = ["EpisodeFormer", "EpisodeMemory", "EpisodeRetriever", "JsonMemoryStore", "LLMPreferenceExtractor", "MemoryMetrics", "MemoryService", "MemorySnapshot", "PreferenceCandidate", "ProfileMemoryGate", "ProfileMemoryManager", "ProfileMerger", "ProfilePreference", "UserProfile"]
+__all__ = [
+    "EmbeddingBatch",
+    "EpisodeFormer",
+    "EpisodeMemory",
+    "EpisodeRetriever",
+    "JsonMemoryStore",
+    "LLMPreferenceExtractor",
+    "MemoryMetrics",
+    "MemoryService",
+    "MemorySnapshot",
+    "OllamaEpisodeEmbedder",
+    "PreferenceCandidate",
+    "ProfileMemoryGate",
+    "ProfileMemoryManager",
+    "ProfileMerger",
+    "ProfilePreference",
+    "UserProfile",
+]

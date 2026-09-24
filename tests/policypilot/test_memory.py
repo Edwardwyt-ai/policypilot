@@ -4,7 +4,12 @@ from types import SimpleNamespace
 from policypilot.config import PolicyPilotConfig
 from policypilot.context import build_agent_context
 from policypilot.memory.context import render_memory_context
-from policypilot.memory.episodic import EpisodeFormer, EpisodeRetriever
+from policypilot.memory.embeddings import EmbeddingBatch, OllamaEpisodeEmbedder
+from policypilot.memory.episodic import (
+    EpisodeFormer,
+    EpisodeRetriever,
+    LocalEpisodeEmbedder,
+)
 from policypilot.memory.models import EpisodeMemory, MemorySnapshot, PreferenceCandidate
 from policypilot.memory.profile import (
     ProfileMemoryGate,
@@ -26,6 +31,27 @@ class StaticExtractor:
     def extract(self, message, task_context):
         self.calls += 1
         return list(self.candidates)
+
+
+class StaticEpisodeEmbedder:
+    model = "qwen3-embedding:0.6b"
+    version = "test-v1"
+
+    def __init__(self):
+        self.calls = []
+
+    def embed(self, texts):
+        self.calls.append(list(texts))
+        vectors = [
+            [1.0, 0.0, 0.0] if "card" in text.lower() else [0.0, 1.0, 0.0]
+            for text in texts
+        ]
+        return EmbeddingBatch(
+            vectors=vectors,
+            model=self.model,
+            version=self.version,
+            prompt_tokens=len(texts),
+        )
 
 
 def make_state():
@@ -266,6 +292,66 @@ def test_memory_binding_accepts_tool_verified_identity():
     bind_memory_from_state(SimpleNamespace(memory=memory), value)
 
     assert memory.bound == ["verified-user"]
+
+
+def test_episode_memory_uses_injected_local_embedding_node(tmp_path):
+    store = JsonMemoryStore(tmp_path)
+    embedder = StaticEpisodeEmbedder()
+    service = MemoryService(
+        store,
+        ProfileMemoryManager(store, StaticExtractor([])),
+        episode_embedder=embedder,
+    )
+    service.bind("user-a")
+    state = make_state()
+
+    service.record_episode(state, AssistantMessage.text("Comparison complete."))
+
+    episode = store.load_episodes("user-a")[0]
+    assert episode.embedding == [1.0, 0.0, 0.0]
+    assert episode.embedding_model == "qwen3-embedding:0.6b"
+    assert episode.embedding_version == "test-v1"
+    assert service.metrics.embedding_calls == 1
+    assert service.metrics.embedding_prompt_tokens == 1
+
+
+def test_retriever_reembeds_legacy_vector_with_active_model():
+    episode = EpisodeMemory(
+        episode_id="legacy",
+        subject_key="subject",
+        objective="Compare cards",
+        target="card",
+        intent="INFORMATIONAL",
+        outcome="ANSWERED",
+        lesson="Compare card fees",
+        embedding=[0.0] * 64,
+        embedding_model="local-hashed-token",
+        embedding_version="v1",
+    )
+    retriever = EpisodeRetriever(StaticEpisodeEmbedder())
+
+    result = retriever.retrieve([episode], "Which card should I choose?")
+
+    assert result == [episode]
+    assert episode.embedding_model == "qwen3-embedding:0.6b"
+    assert len(episode.embedding) == 3
+
+
+def test_ollama_embedding_failure_falls_back_without_breaking_memory(monkeypatch):
+    from policypilot.memory import embeddings as embedding_module
+
+    def fail_client(**kwargs):
+        raise embedding_module.httpx.ConnectError("offline")
+
+    monkeypatch.setattr(embedding_module.httpx, "Client", fail_client)
+    embedder = OllamaEpisodeEmbedder(fallback=LocalEpisodeEmbedder())
+
+    batch = embedder.embed(["compare cards"])
+
+    assert batch.model == "local-hashed-token"
+    assert batch.fallback_used
+    assert batch.failed
+    assert len(batch.vectors[0]) == 64
 
 
 def test_agent_profile_chain_uses_explicit_user_binding(tmp_path, tools):

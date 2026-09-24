@@ -89,4 +89,9 @@ class MemoryMetrics(BaseModel):
     extraction_failures: int = 0
     storage_failures: int = 0
     episode_value_rejected: int = 0
+    embedding_calls: int = 0
+    embedding_failures: int = 0
+    embedding_fallbacks: int = 0
+    embedding_prompt_tokens: int = 0
+    embedding_latency_ms: float = 0.0
     recall_events: list[str] = Field(default_factory=list)

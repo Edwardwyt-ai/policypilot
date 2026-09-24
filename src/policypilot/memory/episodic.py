@@ -5,10 +5,12 @@ import hashlib
 import json
 import math
 import re
+from typing import Sequence
 
 from pydantic import BaseModel, Field
 
 from policypilot.llm_runtime import LLMRuntime
+from policypilot.memory.embeddings import EmbeddingBatch, EpisodeEmbedder
 from policypilot.memory.models import EpisodeMemory
 from policypilot.state import PolicyPilotState
 from tau2.data_model.message import AssistantMessage, SystemMessage, UserMessage
@@ -168,7 +170,7 @@ class LocalEpisodeEmbedder:
     version = "v1"
 
     @staticmethod
-    def embed(text: str, dimensions: int = 64) -> list[float]:
+    def embed_one(text: str, dimensions: int = 64) -> list[float]:
         vector = [0.0] * dimensions
         for token in re.findall(r"[a-z0-9_]{3,}", text.lower()):
             digest = hashlib.sha256(token.encode("utf-8")).digest()
@@ -177,28 +179,73 @@ class LocalEpisodeEmbedder:
         norm = math.sqrt(sum(value * value for value in vector))
         return [value / norm for value in vector] if norm else vector
 
+    def embed(self, texts: Sequence[str]) -> EmbeddingBatch:
+        return EmbeddingBatch(
+            vectors=[self.embed_one(text) for text in texts],
+            model=self.model,
+            version=self.version,
+        )
+
 class EpisodeRetriever:
     stop_words = {"the", "and", "for", "with", "that", "this", "user", "want", "need"}
+
+    def __init__(self, embedder: EpisodeEmbedder | LocalEpisodeEmbedder | None = None):
+        self.embedder = embedder or LocalEpisodeEmbedder()
+        self.last_embedding_batch: EmbeddingBatch | None = None
 
     @classmethod
     def _tokens(cls, value: str) -> set[str]:
         return {token for token in re.findall(r"[a-z0-9_]{3,}", value.lower()) if token not in cls.stop_words}
 
     def retrieve(self, episodes: list[EpisodeMemory], query: str, *, limit: int = 3) -> list[EpisodeMemory]:
+        self.last_embedding_batch = None
+        if not episodes:
+            return []
         query_tokens = self._tokens(query)
         query_target = next(
             (token for token in query_tokens if any(token == (item.target or "").lower() for item in episodes)),
             None,
         )
-        query_embedding = LocalEpisodeEmbedder.embed(query)
+        query_batch = self._embed([query])
+        query_embedding = query_batch.vectors[0]
+        active_model = query_batch.model
+        active_version = query_batch.version
+        texts = [self._episode_text(episode) for episode in episodes]
+        missing_indexes = [
+            index
+            for index, episode in enumerate(episodes)
+            if not episode.embedding
+            or episode.embedding_model != active_model
+            or episode.embedding_version != active_version
+            or len(episode.embedding) != len(query_embedding)
+        ]
+        generated: dict[int, list[float]] = {}
+        if missing_indexes:
+            generated_batch = self._embed([texts[index] for index in missing_indexes])
+            if (
+                generated_batch.model != active_model
+                or generated_batch.version != active_version
+            ):
+                local = LocalEpisodeEmbedder()
+                query_batch = local.embed([query])
+                query_embedding = query_batch.vectors[0]
+                active_model = query_batch.model
+                active_version = query_batch.version
+                missing_indexes = list(range(len(episodes)))
+                generated_batch = local.embed(texts)
+            generated = dict(zip(missing_indexes, generated_batch.vectors))
+            for index, vector in generated.items():
+                episodes[index].embedding = vector
+                episodes[index].embedding_model = active_model
+                episodes[index].embedding_version = active_version
         ranked = []
-        for episode in episodes:
+        for index, episode in enumerate(episodes):
             if query_target and episode.target and episode.target.lower() != query_target:
                 continue
-            text = " ".join([episode.objective, episode.target or "", episode.intent, *episode.preference_aspects])
+            text = texts[index]
             overlap = len(query_tokens.intersection(self._tokens(text)))
             target_bonus = 2 if episode.target and episode.target.lower() in query.lower() else 0
-            vector = episode.embedding or LocalEpisodeEmbedder.embed(text)
+            vector = generated.get(index, episode.embedding)
             semantic_score = sum(a * b for a, b in zip(query_embedding, vector))
             if overlap or target_bonus or semantic_score > 0.1:
                 ranked.append((overlap + target_bonus + semantic_score, episode.updated_at, episode))
@@ -214,3 +261,22 @@ class EpisodeRetriever:
             if len(selected) >= limit:
                 break
         return selected
+
+    def _embed(self, texts: Sequence[str]) -> EmbeddingBatch:
+        batch = self.embedder.embed(texts)
+        self.last_embedding_batch = batch
+        return batch
+
+    @staticmethod
+    def _episode_text(episode: EpisodeMemory) -> str:
+        return " ".join(
+            [
+                episode.situation,
+                episode.goal_pattern,
+                episode.objective,
+                episode.target or "",
+                episode.intent,
+                *episode.preference_aspects,
+                episode.lesson,
+            ]
+        )

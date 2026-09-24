@@ -1,0 +1,5265 @@
+{
+  "schema_version": "need-gold-v1",
+  "domain": "banking_knowledge",
+  "source_task_count": 97,
+  "selected_task_count": 67,
+  "selection_method": "Stratified coverage of product selection, rewards, disputes, account maintenance, account opening/closure, fees, card replacement, PIN recovery, interest, and referrals; near-duplicate and handoff-only tasks were down-sampled.",
+  "tasks": {
+    "task_001": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Personal-card purpose and hard constraints: everyday spend, highest cash back, and no annual fee unless no alternative exists; Rho-Bank+ status is also material."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Comparable personal-card reward rates, annual fees, and subscription-dependent terms."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application inputs for the selected card and the completed application."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "Card purpose, annual-fee constraint, reward objective, and subscription status are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence covers every viable personal-card candidate and each stated hard constraint."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The policy-backed best-fit card is selected and the application succeeds."
+        }
+      ]
+    },
+    "task_002": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Travel spending profile, premium-benefit preferences, income, annual-fee tolerance, and subscription status."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Eligibility, travel rewards, benefits, fees, and promotional terms across plausible personal cards."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application inputs and successful application for the chosen travel card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "All decision-driving travel, fee, income, and subscription facts are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports a constraint-by-constraint comparison and a single eligible best fit."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The recommended eligible card is applied for successfully."
+        }
+      ]
+    },
+    "task_003": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Everyday-spend preferences, hard card constraints, income, and Rho-Bank+ status."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Personal-card fees, rewards, eligibility, and subscription benefits for viable candidates."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application inputs and completed application for the selected card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "All hard constraints and eligibility facts needed for card choice are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Every hard constraint is supported by policy evidence and one candidate dominates."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The policy-backed card application succeeds."
+        }
+      ]
+    },
+    "task_005": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Current account balances plus the account profile and support-code state relevant to the requested email change."
+        },
+        {
+          "id": "governing_policy",
+          "description": "The special-support-code and identity rules that permit or prohibit an email change."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "The requested email change after all policy and verification prerequisites are met."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "profile_update_or_handoff"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Balances and the authoritative profile/support state have been retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence establishes whether the change is authorized and what prerequisites apply."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The email change succeeds, or a policy-required handoff is completed without claiming success."
+        }
+      ]
+    },
+    "task_006": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Everyday-card objective, environmental preference, income, fee tolerance, and subscription status."
+        },
+        {
+          "id": "governing_policy",
+          "description": "EcoCard and alternative personal-card rewards, fees, eligibility, and relevant environmental benefits."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application inputs and successful application for the best-fit card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "All product constraints and eligibility facts are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence compares EcoCard against all viable alternatives on the user's constraints."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The chosen card is policy-supported and the application succeeds."
+        }
+      ]
+    },
+    "task_007": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Desired promotional value, acceptable reward form, income, and subscription status."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Current promotions, eligibility restrictions, reward value, and card fees for viable cards."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application inputs and completed application for the selected promotional card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "Promotion objective and all eligibility facts are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence identifies the best eligible promotion without relying on the mailed offer alone."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The eligible best-promotion card application succeeds."
+        }
+      ]
+    },
+    "task_010": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The customer's actual referral records, credited bonuses, rejected referrals, and account types."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Referral qualification, retry, restriction, and bonus rules for the affected card types."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "A retry referral only when the observed state and policy make it valid."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "referral_submission"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Referral history is retrieved and explains each missing bonus with account-specific evidence."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence can classify the observed referral outcomes and determine whether retry is allowed."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "An eligible retry is submitted successfully, or evidence establishes that no retry should occur."
+        }
+      ]
+    },
+    "task_015": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Which referral programs the customer can use and the objective of maximizing valid referral value."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Referral availability, bonuses, caps, and qualification rules across the customer's cards."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Safe exposure and use of only the eligible referral capability."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "user_tool_enablement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "Relevant card ownership and referral objective are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence identifies each currently usable program and its exact qualification terms."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The eligible referral path is made available and invoked with valid parameters."
+        }
+      ]
+    },
+    "task_016": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The specific referral status and the referred account's actual qualifying activity."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Referral bonus timing and transaction qualification requirements."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "The remaining user-side qualifying transaction when policy and state show it is appropriate."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "user_transaction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Account-specific referral and transaction state is retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence explains the missing bonus and the exact remaining requirement."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The qualifying transaction succeeds or evidence establishes that no transaction should be requested."
+        }
+      ]
+    },
+    "task_017": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Silver Rewards Card transactions and the rewards actually posted for each suspicious transaction."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Silver Rewards Card earning categories, exclusions, and correction rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Correction of every confirmed reward discrepancy and no mutation of correctly rewarded transactions."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All candidate transactions and posted reward amounts are retrieved and paired."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each suspected discrepancy is recalculated from policy evidence."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All and only confirmed discrepancies are corrected successfully."
+        }
+      ]
+    },
+    "task_018": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Transactions and posted rewards across every affected personal and business card."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Earning rules and exclusions for every affected card product."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Corrections for all confirmed discrepancies only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All relevant card accounts, transactions, and posted rewards are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each transaction is evaluated against the policy for its own card and category."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Every confirmed mismatch is corrected and valid rewards remain unchanged."
+        }
+      ]
+    },
+    "task_019": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Gold Rewards and EcoCard transactions with their posted reward amounts."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Gold Rewards and EcoCard earning categories and exclusions."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Corrections for confirmed reward errors only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Relevant transactions and rewards for both cards are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each suspected discrepancy has a policy-backed expected reward."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All confirmed errors are corrected without changing correct entries."
+        }
+      ]
+    },
+    "task_020": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Business Silver and personal Silver transactions with posted rewards."
+        },
+        {
+          "id": "governing_policy",
+          "description": "The distinct reward rules for Business Silver and personal Silver cards."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Corrections for all and only confirmed reward errors."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Relevant transactions and reward postings for both accounts are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Every transaction is evaluated under the correct product policy."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Confirmed discrepancies are corrected successfully."
+        }
+      ]
+    },
+    "task_021": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Business Bronze and EcoCard transactions and posted rewards."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business Bronze and EcoCard reward rules, including category-specific conditions."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Correction of confirmed reward discrepancies."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Relevant account, transaction, and reward state is retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Expected reward is supported for each questioned transaction."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All confirmed mismatches are corrected and valid entries are untouched."
+        }
+      ]
+    },
+    "task_022": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All affected card accounts, their transactions, and posted rewards across the audit scope."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Reward policies for each personal and business card in the audit."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Corrections for every confirmed discrepancy only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The complete audit population and posted reward data are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Every audited transaction is matched to the correct product/category rule."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The complete set of confirmed errors is corrected without false positives."
+        }
+      ]
+    },
+    "task_023": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Current Platinum account status and the spending history relevant to fee rebate eligibility."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Platinum annual-fee rebate thresholds, timing, exclusions, and alternative-card eligibility."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Any selected replacement or additional card application after the fee analysis."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Authoritative account and qualifying spend are retrieved for the required period."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence determines rebate eligibility and supports any recommended alternative."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The chosen policy-consistent application succeeds, or no application occurs when unnecessary."
+        }
+      ]
+    },
+    "task_024": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Business vehicle purchase amount, business use, repayment plan, reward preference, and fee tolerance."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business-card limits, rewards, fees, eligibility, and purchase suitability."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application for the single best eligible business card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "Purchase and business constraints needed for product choice are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence compares viable business cards against the truck-purchase requirements."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The selected business-card application succeeds."
+        }
+      ]
+    },
+    "task_025": {
+      "expected_needs": [
+        {
+          "id": "user_requirements",
+          "description": "Enterprise purchase amount, merchant/category, company scale, repayment assumptions, and fee tolerance."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business-card limits, category rewards, fees, eligibility, and large-purchase restrictions."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Application for the selected business card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_application"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "user_requirements",
+          "condition": "All material purchase and eligibility constraints are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports a single eligible card for the planned purchase."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The policy-backed business-card application succeeds."
+        }
+      ]
+    },
+    "task_026": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Both Silver card accounts, questioned transactions, posted rewards, and any prior correction state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business and personal Silver reward rules plus correction authorization."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Agent-side correction of all confirmed reward errors."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All relevant live data is retrieved before mutation."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Every questioned reward has a policy-backed expected value and correction eligibility."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All confirmed errors are corrected and no correct reward is changed."
+        }
+      ]
+    },
+    "task_027": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Business Silver and personal Silver transactions and reward postings."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Applicable earning rules and exclusions for both Silver products."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The questioned transaction population and posted values are complete."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each discrepancy is either confirmed or rejected with policy evidence."
+        }
+      ]
+    },
+    "task_028": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The full set of affected accounts, transactions, and posted rewards in the multi-card complaint."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Reward and correction rules for every affected product."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "All authorized reward corrections."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All relevant live records are retrieved and associated with the correct account."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each transaction has a policy-backed expected reward and mutation decision."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Every confirmed discrepancy is corrected exactly once."
+        }
+      ]
+    },
+    "task_029": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Affected card transactions, reward postings, and any correction history."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Applicable reward calculations and correction constraints."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Corrections for confirmed errors only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "reward_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All questioned records and prior mutations are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each questioned reward has a supported expected value and eligibility decision."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All eligible corrections succeed without duplicate or unsupported mutation."
+        }
+      ]
+    },
+    "task_031": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The exact hotel transaction, amount, date, card, and current dispute status."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Card dispute eligibility, evidence, reason classification, deadlines, and provisional-credit rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "A correctly classified dispute when eligible."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "transaction_dispute"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The matching posted transaction and any existing dispute are identified."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence determines whether and how the hotel service dispute may proceed."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The dispute is submitted once with the authoritative transaction identifiers and reason."
+        }
+      ]
+    },
+    "task_033": {
+      "expected_needs": [
+        {
+          "id": "live_account_state",
+          "description": "The card balance, payment record, source-account debit, posting state, and timing."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Payment posting timelines, missing-payment investigation, and escalation rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "The allowed investigation or human handoff without falsely claiming the balance is fixed."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "payment_investigation_or_handoff"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "live_account_state",
+          "condition": "Both sides of the payment are retrieved and reconciled."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence classifies the delay and identifies the permitted next action."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The supported resolution path is completed and the observed status is communicated accurately."
+        }
+      ]
+    },
+    "task_036": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Recent card transactions sufficient to identify any suspicious charge."
+        },
+        {
+          "id": "governing_policy",
+          "description": "The rule for distinguishing information review from a disputable unauthorized transaction."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The requested transaction window is retrieved with stable transaction identifiers."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Any suspicious item has a supported classification and next-step requirement."
+        }
+      ]
+    },
+    "task_037": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Recent transactions and the exact suspicious transaction selected by the user."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Dispute eligibility, reason, deadline, and card-compromise handling."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "User-side dispute submission for the confirmed suspicious charge."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "user_transaction_dispute"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The suspicious transaction is identified from authoritative account history."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence supports the dispute path and any replacement requirement."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The correct transaction is disputed once with valid reason data."
+        }
+      ]
+    },
+    "task_038": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All three Amazon transactions, their identifiers, statuses, and the affected card state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Dispute classification for each charge plus fraud-driven cancellation and replacement rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Three valid disputes and cancellation/reissue of the compromised card."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "dispute_and_card_replacement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Each named charge is matched to one authoritative transaction and the card is identified."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each charge has an eligible reason and the compromised-card response is supported."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Each eligible dispute is submitted once and replacement completes for the correct card."
+        }
+      ]
+    },
+    "task_040": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All questioned transactions across the personal and business cards, including account ownership and current dispute state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Reason-specific dispute eligibility, deadlines, and provisional-credit rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "All and only eligible disputes across both cards."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "transaction_dispute"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Every requested charge is uniquely matched to its correct card account."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each transaction has a policy-supported dispute decision and reason."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Every eligible dispute succeeds once with correct transaction/account parameters."
+        }
+      ]
+    },
+    "task_043": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Platinum account balance, pending items, recurring obligations, and closure readiness."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Card closure prerequisites, balance settlement, fee implications, and replacement-card handling."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Payoff and closure only after prerequisites are satisfied."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_closure"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All live blockers to closure are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence establishes the exact safe closure sequence."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The account reaches a closable state and closure succeeds without unsupported claims."
+        }
+      ]
+    },
+    "task_044": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Current Gold account usage, balance, benefits, and closure constraints."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Rho-Bank alternatives, comparative benefits, fees, closure rules, and application eligibility."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "The selected retention/closure/application outcome."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "card_retention_or_replacement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Authoritative account state needed for retention or closure is retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports either retention or one eligible replacement without accepting competitor claims as bank policy."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Only the policy-supported account mutation or application succeeds."
+        }
+      ]
+    },
+    "task_045": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Business Silver account balance, use, pending items, and closure readiness."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business-card closure prerequisites and available Rho-Bank alternatives."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Closure only when all prerequisites are satisfied."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_card_closure"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All authoritative closure blockers and relevant usage are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence supports the final keep/close decision and required sequence."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The correct business card is closed or a required blocker is accurately reported."
+        }
+      ]
+    },
+    "task_047": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Current business-card accounts, balances, eligibility, and closure constraints."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Closure rules and the rewards, fees, eligibility, and travel fit of Rho-Bank business alternatives."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "The approved application and account closure sequence."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "card_replacement_strategy"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The affected account and every closure/application prerequisite are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports a single valid replacement strategy before closure."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The replacement application and any closure occur in a policy-safe order."
+        }
+      ]
+    },
+    "task_048": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All four card accounts, balances, pending activity, linked payments, and individual closure blockers."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Closure prerequisites and any product-specific retention or replacement constraints."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Closure of every currently eligible card without forcing blocked closures."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "bulk_credit_card_closure"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Closure readiness is known independently for every card."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each card has a supported close, defer, or replace decision."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All eligible cards close successfully and each blocked card remains unchanged with its blocker recorded."
+        }
+      ]
+    },
+    "task_050": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Gold account limit, balance, payment history, account age, and recent limit changes."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Credit-limit increase eligibility, timing, utilization, and approval rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "A limit-increase request only when eligible."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_limit_change"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All policy inputs for a limit decision are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "The live account state is evaluated against every applicable eligibility rule."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The eligible increase succeeds, or the precise blocking rule is established without mutation."
+        }
+      ]
+    },
+    "task_051": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Bronze account balance, utilization, limit, age, payment history, and prior increase history."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Credit-limit increase rules, especially utilization and outstanding-balance constraints."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "A limit change only if all conditions pass."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "credit_limit_change"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All authoritative eligibility inputs are retrieved, including the stated balance."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Every eligibility condition is resolved from policy and live state."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The increase succeeds when eligible; otherwise no mutation occurs and the blocker is explicit."
+        }
+      ]
+    },
+    "task_053": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The laptop transaction and dispute status plus the card's complete limit-increase eligibility state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Non-delivery dispute rules and credit-limit increase rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "The eligible dispute and any eligible limit increase."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "dispute_and_limit_change"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The transaction and all account attributes required by both requested operations are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Both requests have independent policy-backed eligibility decisions."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Each operation executes only if its own prerequisites pass."
+        }
+      ]
+    },
+    "task_054": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The fraudulent CloudSync transaction, card compromise status, replacement state, and limit-increase eligibility inputs."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Unauthorized-charge dispute, compromised-card replacement, and limit-increase rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Fraud dispute, safe card replacement, and only an eligible limit increase."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "fraud_recovery_and_limit_change"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The fraud item and all account attributes for replacement and limit review are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each requested operation has an independent supported decision and ordering."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All supported operations complete once in a safe order; unsupported ones do not run."
+        }
+      ]
+    },
+    "task_055": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "One travel checking recommendation, one emergency-fund savings recommendation, and the $1,500 funding requirement."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Checking travel costs/benefits, savings yield/fees, opening eligibility, and check-deposit rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open both selected accounts and deposit the check into the new savings account."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_opening_and_funding"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Travel usage, savings objective, and funding amount/method are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports exactly one eligible checking and one savings choice plus valid funding."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Both openings and the $1,500 deposit succeed in the required order."
+        }
+      ]
+    },
+    "task_056": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "A better business checking account than Navy Blue, a first business savings account, and transfer funding constraints."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business checking/savings eligibility, fees, benefits, yield, and transfer rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open the selected accounts and fund savings from Navy Blue."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "business_account_opening_and_funding"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Business needs, comparison baseline, and funding source/amount are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports one better checking and one eligible savings product plus valid funding."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Openings and the authorized transfer complete successfully."
+        }
+      ]
+    },
+    "task_057": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Personal checking constraints, savings objective, and $2,000 check-deposit requirement."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Checking and savings product fit, opening eligibility, and check-deposit rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open the selected accounts and deposit the check into checking."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_opening_and_funding"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "All product constraints and the funding target are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports one eligible checking choice, one savings choice, and valid funding."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Both accounts open and the $2,000 checking deposit succeeds."
+        }
+      ]
+    },
+    "task_058": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The $20,000 one-year holding plan and objective to maximize net return across a new card and savings account."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Card rewards/fees, savings APY/tiers/boosts/fees, cross-product benefits, and opening rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Apply for the selected card, open savings, and deposit $20,000."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "product_bundle_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Amount, horizon, transaction assumptions, and eligibility preferences are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "A net-return calculation covers all viable bundles and every material condition."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The policy-backed bundle is opened and funded successfully."
+        }
+      ]
+    },
+    "task_059": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The $5,000 one-year holding plan and objective to maximize net annual return from a card/savings bundle."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Card rewards/fees and savings rates, tiers, boosts, fees, and opening constraints."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Apply for the chosen card, open savings, and fund it with $5,000."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "product_bundle_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Amount, horizon, and all eligibility/preferences are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Net-return evidence compares every viable bundle at the stated balance."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The selected bundle opens and funding succeeds."
+        }
+      ]
+    },
+    "task_060": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Close the empty Green checking account and choose one emergency-fund savings product under the user's constraints."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Green checking balance and closure blockers plus existing relationships relevant to savings eligibility."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Checking closure rules and savings rates, fees, eligibility, and benefits."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Close Green checking and open the selected savings account."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Closure intent and all savings constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The old account is confirmed closable and relevant existing products are known."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports the closure and exactly one eligible savings recommendation."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Both operations complete in a safe supported order."
+        }
+      ]
+    },
+    "task_062": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Which existing accounts to retain/close, the new LLC's business-checking needs, and the savings-upgrade objective."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All existing account balances, ownership, age, and closure/opening blockers."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Closure rules plus business-checking and savings product eligibility/fit."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Close eligible unwanted accounts and open the selected business checking and savings products."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "All reorganization goals and business constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Authoritative state is complete for every account affected by the reorganization."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports one coherent target account configuration."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The supported target configuration is reached without invalid closures."
+        }
+      ]
+    },
+    "task_063": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The $8,000 one-year savings objective and willingness to add a card only when it improves total return."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Savings rates/tiers/boosts and card rewards/fees/eligibility across viable bundles."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open and fund the best savings option and apply for a card only when justified."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "product_bundle_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Balance, horizon, withdrawal assumptions, and card constraints are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "A comparable annual-return calculation resolves every bundle condition."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The highest supported return configuration is opened and funded."
+        }
+      ]
+    },
+    "task_064": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The $30,000 one-year plan, active Rho-Bank+ status, and objective to maximize total return across card and savings products."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Subscription-sensitive savings boosts, balance tiers, card rewards/fees, and bundle eligibility."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open, apply, and fund the selected bundle."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "product_bundle_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Balance, horizon, subscription, and card preferences are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Net-return evidence covers every viable subscription-aware bundle."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The best supported bundle is established and $30,000 is deposited."
+        }
+      ]
+    },
+    "task_065": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Maximize one-year interest on $6,000, replace Light Blue with a better checking account, close Light Blue, and do not add a credit card."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Light Blue balance and closure readiness plus existing relationships affecting eligibility."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Savings yield/fees, checking benefits/fees, eligibility, and closure rules without card-dependent options."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open the selected accounts, deposit $6,000, and close Light Blue."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "All savings, checking, closure, and no-card constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The old account is confirmed closable and all relevant relationships are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports one savings and one checking choice while honoring the no-card constraint."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The target account configuration and funding complete without a card application."
+        }
+      ]
+    },
+    "task_066": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Maximize one-year return on $6,000, upgrade checking, close Light Blue, and allow a card only if it improves return."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Light Blue closure readiness and existing product relationships."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Savings tiers/boosts, checking benefits, card-dependent boosts/fees, and closure rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Establish the optimal account bundle, fund savings, and close Light Blue safely."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "All balance, horizon, checking, closure, and optional-card constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All live prerequisites and current relationships are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Comparable net-return evidence determines whether a card is beneficial."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All supported operations complete and any card is added only when net-beneficial."
+        }
+      ]
+    },
+    "task_067": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Maximize one-year return on $100,000 while upgrading checking, closing Light Blue, and considering a return-improving card."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Existing Light Blue state and relationships relevant to high-balance product eligibility."
+        },
+        {
+          "id": "governing_policy",
+          "description": "High-balance savings tiers/caps, checking benefits, card boosts/fees, and closure rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open/fund the optimal products and close Light Blue in a safe order."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "High-balance amount, horizon, and all bundle constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Closure readiness and current relationship benefits are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Net-return evidence accounts for balance caps and all bundle costs."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The supported high-balance configuration is reached successfully."
+        }
+      ]
+    },
+    "task_068": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Maximize one-year return on $25,000, upgrade checking, close Light Blue, and optionally add a beneficial card."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Current Light Blue state and existing relationships."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Savings tiers/boosts, checking benefits, card costs/boosts, and closure requirements."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open and fund selected products and safely close Light Blue."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Amount, horizon, and all account/card constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Closure readiness and relevant relationship facts are authoritative."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "A net-return comparison supports one complete target configuration."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The target bundle is established with $25,000 funded."
+        }
+      ]
+    },
+    "task_069": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "Maximize one-year return on $10,000, replace Light Blue checking, close it, and consider a card only when beneficial."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Light Blue balance, closure readiness, and existing relationship state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Savings rates/tiers, checking benefits, card-linked boosts/costs, and closure rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open/fund selected products and close Light Blue safely."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_reorganization"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Amount, horizon, and bundle constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All live blockers and relationship facts are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports a single net-optimal configuration."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The supported configuration is completed and funded with $10,000."
+        }
+      ]
+    },
+    "task_070": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "One business checking account satisfying ease-of-use, perks, overdraft-fee, and other stated business constraints."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business-checking fees, overdraft treatment, operational features, perks, and eligibility."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open the single selected business checking account."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "business_account_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Business profile and every hard/soft checking requirement are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence covers all viable products and supports exactly one best fit."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The recommended eligible account opens successfully."
+        }
+      ]
+    },
+    "task_071": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "One business checking and one business savings account satisfying all studio, fee, feature, and yield constraints."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business checking and savings fees, features, rates, tiers, eligibility, and relationship benefits."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open both selected business accounts."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "business_account_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Every checking/savings hard constraint and business fact is explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports exactly one compatible checking/savings pair."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Both recommended eligible accounts open successfully."
+        }
+      ]
+    },
+    "task_072": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "November ATM transactions and assessed fees for both Bluest and Light Green accounts."
+        },
+        {
+          "id": "governing_policy",
+          "description": "ATM fee and reimbursement rules for both checking products."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Correction or reimbursement of confirmed ATM-fee errors only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "fee_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Every questioned ATM fee is retrieved with account, network, location, currency, and amount."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each assessed fee has a policy-backed expected amount and reimbursement decision."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All confirmed errors are corrected and valid fees remain unchanged."
+        }
+      ]
+    },
+    "task_073": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "November ATM transactions and fees across Blue, Green, and Light Green accounts."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Account-specific ATM fee and reimbursement rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Correction of every confirmed fee error only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "fee_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All questioned fees are associated with their correct account and ATM context."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each fee is evaluated under the correct product policy."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Confirmed errors are corrected without changing valid fees."
+        }
+      ]
+    },
+    "task_074": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "November ATM transactions and fees across all four checking accounts."
+        },
+        {
+          "id": "governing_policy",
+          "description": "ATM fee, foreign-use, network, and reimbursement rules for each account product."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "All eligible ATM-fee corrections."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "fee_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "The complete questioned fee set and transaction context are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Every fee has a policy-backed expected treatment."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Every confirmed discrepancy is corrected exactly once."
+        }
+      ]
+    },
+    "task_075": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "A new checking account minimizing foreign, out-of-network ATM cost during a three-month Southeast Asia trip."
+        },
+        {
+          "id": "governing_policy",
+          "description": "ATM fees, foreign transaction/conversion costs, reimbursements, caps, account fees, and eligibility for all viable checking products."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open the selected travel checking account."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Trip duration, geography, ATM pattern, currency use, and other constraints are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "A comparable trip-cost estimate supports one lowest-cost eligible account."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The policy-backed lowest-cost account opens successfully."
+        }
+      ]
+    },
+    "task_076": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "A European-travel checking account minimizing ATM costs while also providing required early direct deposit."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Foreign and out-of-network ATM costs, reimbursements, early direct-deposit availability, fees, and eligibility."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Open the selected checking account."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "account_opening"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Travel/ATM assumptions and early-deposit hard constraint are explicit."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence proves one eligible account satisfies early deposit and minimizes expected trip cost."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The eligible best-fit travel account opens successfully."
+        }
+      ]
+    },
+    "task_077": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Both checking accounts, their debit cards, current status, and any pending replacement orders."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Lost-card freeze/closure, replacement, delivery, and account-specific fee rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Freeze/close and replace both missing debit cards exactly once."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "debit_card_replacement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Each missing card is uniquely identified and duplicate replacement risk is resolved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "The required handling for each card is established from policy."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Both correct cards are secured and replacement orders succeed without duplicates."
+        }
+      ]
+    },
+    "task_078": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All three checking accounts, linked debit cards, statuses, and pending replacements."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Lost-card security and replacement rules for each account/card."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Secure and replace all three lost debit cards."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "debit_card_replacement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Every lost card is mapped to the correct account and current order state."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Policy evidence supports the required action for all three cards."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Each affected card is handled exactly once and all replacement orders succeed."
+        }
+      ]
+    },
+    "task_079": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All stolen debit cards, linked accounts, card status, and pending replacement state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Stolen-card freeze/closure, fraud precaution, replacement, and delivery rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Immediately secure and replace all stolen debit cards."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "debit_card_replacement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Every stolen card is authoritatively identified with no duplicate-order ambiguity."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "The required security sequence is supported for each card."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All affected cards are disabled and replacement orders complete exactly once."
+        }
+      ]
+    },
+    "task_080": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Three debit cards and two credit cards in the stolen wallet, including statuses and pending replacement orders."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Debit- and credit-card stolen-card handling, replacement, delivery, and fee rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Secure and replace all five cards exactly once."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "multi_card_replacement"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All five cards are mapped to authoritative accounts and current replacement state."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "A supported security/replacement plan exists for each of the five cards."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Every affected card is disabled and replacement completes without omissions or duplicates."
+        }
+      ]
+    },
+    "task_090": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "All three debit cards, PIN failure/lock state, recent attempts, and account/card status."
+        },
+        {
+          "id": "governing_policy",
+          "description": "PIN retry, lockout, reset, security, and escalation rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Recover each eligible PIN-locked card or hand off only where policy requires it."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "pin_recovery"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Each decline is tied to authoritative PIN/card state."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "The permitted recovery path is known independently for each card."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "All cards reach the correct resolved or escalated state without unsafe resets."
+        }
+      ]
+    },
+    "task_093": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Silver savings balances, interest postings, qualification history, and linked-account state for the relevant periods."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Silver savings base rate, tiers, boosts, qualification windows, and posting calculation."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Correction of any confirmed interest underpayment only."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "interest_correction"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "All values required to recompute expected interest are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Expected interest is reproducibly calculated for each questioned period."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "A confirmed discrepancy is corrected, or exact evidence shows the posting is correct."
+        }
+      ]
+    },
+    "task_098": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The friend's actual customer relationship/location facts and the objective of maximizing valid combined referral value for a personal checking account."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Referrer's current referral history, caps, and eligibility state."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Personal checking referral bonuses, recipient eligibility, product eligibility, stacking, geography, and caps."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Submit the single eligible best-value referral."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "referral_submission"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Referral-recipient facts and product constraints are explicit without relying on casual labels like roommate."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Authoritative referral usage and remaining capacity are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence supports one valid highest-value referral choice."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The referral succeeds with the policy-supported account type."
+        }
+      ]
+    },
+    "task_099": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The new LLC's actual ownership, business needs, and objective of maximizing the referrer's valid business-checking bonus."
+        },
+        {
+          "id": "live_account_state",
+          "description": "The referrer's current referral history, limits, and eligibility."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Business-checking referral bonuses, product/recipient eligibility, caps, and qualification rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Submit the selected business-checking referral."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "referral_submission"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Recipient business facts and hard product constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Referral capacity and any prior conflicting referrals are retrieved."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Evidence identifies one highest-value eligible referral product."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "The valid highest-value referral succeeds once."
+        }
+      ]
+    },
+    "task_101": {
+      "expected_needs": [
+        {
+          "id": "verified_identity",
+          "description": "The authenticated customer identity required before private account access or mutation."
+        },
+        {
+          "id": "user_requirements",
+          "description": "The true relationship and needs of each of four prospective referrals, separated into personal and business recipients."
+        },
+        {
+          "id": "live_account_state",
+          "description": "Year-to-date referral history, product-specific caps, and remaining eligibility."
+        },
+        {
+          "id": "governing_policy",
+          "description": "Personal/business checking referral eligibility, bonuses, caps, recipient restrictions, and stacking rules."
+        },
+        {
+          "id": "authorized_execution",
+          "description": "Submit only the optimal eligible referrals within all caps."
+        }
+      ],
+      "allowed_acquisition": [
+        {
+          "need_id": "verified_identity",
+          "sources": [
+            "user_dialogue",
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "identity_collection",
+            "identity_verification"
+          ]
+        },
+        {
+          "need_id": "user_requirements",
+          "sources": [
+            "user_dialogue"
+          ],
+          "capabilities": [
+            "user_clarification"
+          ]
+        },
+        {
+          "need_id": "live_account_state",
+          "sources": [
+            "transaction_tool"
+          ],
+          "capabilities": [
+            "account_or_transaction_lookup"
+          ]
+        },
+        {
+          "need_id": "governing_policy",
+          "sources": [
+            "policy_kb"
+          ],
+          "capabilities": [
+            "policy_search"
+          ]
+        },
+        {
+          "need_id": "authorized_execution",
+          "sources": [
+            "transaction_tool",
+            "prior_verified_evidence"
+          ],
+          "capabilities": [
+            "referral_submission"
+          ]
+        }
+      ],
+      "completion_condition": [
+        {
+          "need_id": "verified_identity",
+          "condition": "Required identity fields are supplied by the user and verification succeeds."
+        },
+        {
+          "need_id": "user_requirements",
+          "condition": "Each recipient's legal/business status and relevant product constraints are explicit."
+        },
+        {
+          "need_id": "live_account_state",
+          "condition": "Authoritative remaining referral capacity is known before selecting recipients."
+        },
+        {
+          "need_id": "governing_policy",
+          "condition": "Each candidate has an independent eligibility/value decision and the optimal feasible subset is known."
+        },
+        {
+          "need_id": "authorized_execution",
+          "condition": "Every selected referral succeeds once and no ineligible or cap-exceeding referral is submitted."
+        }
+      ]
+    }
+  }
+}

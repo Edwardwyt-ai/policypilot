@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from langgraph.errors import GraphRecursionError
@@ -12,7 +13,8 @@ from policypilot.config import PolicyPilotConfig
 from policypilot.coverage import EvidenceResolver
 from policypilot.errors import PolicyPilotErrorType
 from policypilot.llm_runtime import LLMRuntime
-from policypilot.memory.episodic import LLMEpisodeExtractor
+from policypilot.memory.embeddings import OllamaEpisodeEmbedder
+from policypilot.memory.episodic import LLMEpisodeExtractor, LocalEpisodeEmbedder
 from policypilot.memory.profile import (
     LLMPreferenceExtractor,
     PreferenceExtractor,
@@ -197,6 +199,22 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
                 max_recalled_episodes=self.config.memory_max_recalled_episodes,
                 max_context_chars=self.config.memory_max_context_chars,
                 episode_extractor=LLMEpisodeExtractor(self.llm_runtime),
+                episode_embedder=(
+                    OllamaEpisodeEmbedder(
+                        endpoint=os.getenv(
+                            "POLICYPILOT_MEMORY_EMBEDDING_ENDPOINT",
+                            self.config.memory_embedding_endpoint,
+                        ),
+                        model=os.getenv(
+                            "POLICYPILOT_MEMORY_EMBEDDING_MODEL",
+                            self.config.memory_embedding_model,
+                        ),
+                        timeout_seconds=self.config.memory_embedding_timeout_seconds,
+                        fallback=LocalEpisodeEmbedder(),
+                    )
+                    if self.config.memory_embedding_enabled
+                    else LocalEpisodeEmbedder()
+                ),
             )
             if memory_user_id:
                 self.memory.bind(memory_user_id)
@@ -222,6 +240,7 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
                 "prompt_version": self.config.prompt_version,
                 "retriever_version": self.config.retriever_version,
                 "kb_version": self.config.kb_version,
+                "memory_embedding_model": self.config.memory_embedding_model,
             },
         )
         for message in history:

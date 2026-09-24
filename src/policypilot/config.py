@@ -44,6 +44,10 @@ class PolicyPilotConfig:
     memory_max_episodes_per_user: int = 100
     memory_max_recalled_episodes: int = 3
     memory_max_context_chars: int = 1800
+    memory_embedding_enabled: bool = True
+    memory_embedding_endpoint: str = "http://127.0.0.1:11434"
+    memory_embedding_model: str = "qwen3-embedding:0.6b"
+    memory_embedding_timeout_seconds: float = 60.0
     skills_enabled: bool = True
     max_skill_guidance_chars: int = 3600
     max_active_skills: int = 3
