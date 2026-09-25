@@ -105,6 +105,7 @@ def attach_metrics_metadata(
         "retrieval_query_plans": control.retrieval_query_history,
         "planner_events": control.planner_events,
         "need_registry_events": control.need_registry_events,
+        "dependency_events": control.dependency_events,
         "retrieval_events": control.retrieval_events,
         "context_compressor_events": control.context_compressor_events,
         "need_selection_events": control.need_selection_events,

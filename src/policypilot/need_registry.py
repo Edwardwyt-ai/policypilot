@@ -6,6 +6,7 @@ import hashlib
 from dataclasses import dataclass
 
 from policypilot.coverage import EvidenceResolver
+from policypilot.dependencies import DependencyManager
 from policypilot.state import InformationNeed, NeedCandidate, PolicyPilotState
 from policypilot.taxonomy import canonical_entity, canonicalize_aspect, normalize_text
 
@@ -29,10 +30,12 @@ class NeedManager:
         *,
         capabilities: set[str] | None = None,
         evidence_resolver: EvidenceResolver | None = None,
+        dependency_manager: DependencyManager | None = None,
         max_needs: int = 40,
     ):
         self.capabilities = capabilities or set()
         self.evidence_resolver = evidence_resolver or EvidenceResolver()
+        self.dependency_manager = dependency_manager or DependencyManager()
         self.max_needs = max_needs
 
     @staticmethod
@@ -133,6 +136,7 @@ class NeedManager:
         state.control.need_candidates_created += len(candidates)
         accepted = deduplicated = satisfied = covered = rejected = 0
         new_open = new_resolved = dynamic = 0
+        dependency_pairs: list[tuple[InformationNeed, NeedCandidate]] = []
         for candidate in candidates:
             entity, aspect, normalized_scope, aspect_provenance = self._normalized_candidate(
                 state, candidate
@@ -174,6 +178,7 @@ class NeedManager:
                 None,
             )
             if existing is not None:
+                dependency_pairs.append((existing, candidate))
                 if existing.status in {"RESOLVED", "NOT_APPLICABLE"}:
                     satisfied += 1
                 else:
@@ -270,7 +275,12 @@ class NeedManager:
             else:
                 new_open += 1
             state.upsert_need(need, max_needs=effective_limit)
+            dependency_pairs.append((need, candidate))
             accepted += 1
+
+        self.dependency_manager.attach_for_candidates(
+            state, dependency_pairs, turn=turn
+        )
 
         stats = NeedRegistrationStats(
             candidate_count=len(candidates),

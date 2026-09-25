@@ -7,6 +7,7 @@ from typing import Any, Literal, Protocol, TypedDict, cast
 from langgraph.graph import END, START, StateGraph
 
 from policypilot.config import PolicyPilotConfig
+from policypilot.dependencies import dependency_snapshot
 from policypilot.errors import PolicyPilotErrorType
 from policypilot.needs import (
     decision_ready,
@@ -254,6 +255,7 @@ class PolicyPilotWorkflow:
             "semantic_key": need.semantic_key if need else None,
             "source": need.source if need else None,
             "criticality": "CRITICAL" if need and need.critical else None,
+            "dependency": dependency_snapshot(need, state) if need else None,
             "blocking_open_count": sum(
                 item.status == "OPEN" and item.blocking and not item.exhausted
                 for item in state.information_needs

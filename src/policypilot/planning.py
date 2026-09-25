@@ -18,7 +18,7 @@ from policypilot.state import (
     PolicyPilotState,
 )
 from policypilot.state_updates import is_explicit_action_request
-from policypilot.taxonomy import canonicalize_aspect, normalize_text
+from policypilot.taxonomy import canonical_entity, canonicalize_aspect, normalize_text
 from tau2.data_model.message import SystemMessage, UserMessage
 
 
@@ -156,6 +156,21 @@ class LLMSemanticPlanner:
                 continue
             candidate.aspect = aspect
             candidate.provenance = "semantic_planner"
+            normalized_entity = canonical_entity(candidate.entity, aspect)
+            valid_hints = []
+            for hint in candidate.dependency_hints:
+                hint_aspect = canonicalize_aspect(
+                    hint.aspect, entity=hint.entity, scope=hint.entity
+                ) or normalize_text(hint.aspect)
+                if not hint_aspect:
+                    continue
+                hint_entity = canonical_entity(hint.entity, hint_aspect)
+                if hint_entity == normalized_entity and hint_aspect == aspect:
+                    continue
+                hint.entity = hint_entity
+                hint.aspect = hint_aspect
+                valid_hints.append(hint)
+            candidate.dependency_hints = valid_hints
             if candidate.source == "TOOL" and candidate.capability not in self.capabilities:
                 continue
             valid_needs.append(candidate)

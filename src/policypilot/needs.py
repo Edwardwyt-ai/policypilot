@@ -6,6 +6,11 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from policypilot.config import PolicyPilotConfig
+from policypilot.dependencies import (
+    is_need_runnable,
+    refresh_dependency_state,
+    soft_missing_count,
+)
 from policypilot.state import InformationNeed, PolicyPilotState
 from policypilot.tool_policy import (
     classify_tool,
@@ -142,6 +147,7 @@ def select_next_blocking_need(
     state: PolicyPilotState, config: PolicyPilotConfig | None = None
 ) -> InformationNeed | None:
     limits = config or PolicyPilotConfig()
+    refresh_dependency_state(state, turn=len(state.messages))
     eligible = []
     for need in state.open_needs():
         attempt_limit = (
@@ -158,9 +164,16 @@ def select_next_blocking_need(
             need.actionable = False
             need.status = "EXHAUSTED"
             need.status_reason = "retrieval_attempt_limit_reached"
-        if is_blocking_actionable(need):
+        if is_blocking_actionable(need) and is_need_runnable(need, state):
             eligible.append(need)
     if eligible:
+        eligible.sort(
+            key=lambda item: (
+                soft_missing_count(item, state),
+                -item.priority,
+                item.created_turn,
+            )
+        )
         return eligible[0]
     # Preserve a critical exhausted need as an explicit safe-stop reason.
     return next(
@@ -176,7 +189,10 @@ def select_next_blocking_need(
 def decision_ready(
     state: PolicyPilotState, config: PolicyPilotConfig | None = None
 ) -> bool:
-    return select_next_blocking_need(state, config) is None
+    selected = select_next_blocking_need(state, config)
+    if selected is not None:
+        return False
+    return not any(is_blocking_actionable(need) for need in state.information_needs)
 
 
 def next_need(state: PolicyPilotState) -> InformationNeed | None:

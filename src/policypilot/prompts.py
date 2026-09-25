@@ -28,6 +28,13 @@ required action; background, comparative, or helpful information is OPTIONAL.
 Return no more than six NeedCandidates in one delta. Prefer the smallest set of
 decision-blocking propositions and do not expand one proposition into synonyms.
 
+A NeedCandidate may include at most four dependency_hints for implicit semantic
+prerequisites that are not already obvious from tool arguments, hard goal
+constraints, or mutation verification. Each hint names only entity, aspect,
+optional source, and reason_code. Never invent Need IDs, dependency strength,
+priority, or blocking state. Omit hints unless the upstream proposition is also
+present as an active or newly returned NeedCandidate.
+
 Do not repeat active or resolved needs. Do not interpret structured ToolResult or
 retrieval output, execute tools, infer live banking facts, expose hidden criteria,
 or produce a final answer. An empty delta is valid.

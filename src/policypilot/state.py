@@ -23,6 +23,9 @@ NeedStatus = Literal[
     "EXHAUSTED",
 ]
 NeedPurpose = Literal["PLANNING", "PRE_MUTATION", "VERIFICATION"]
+DependencyKind = Literal["NEED", "FACT", "MUTATION"]
+DependencyStrength = Literal["HARD", "SOFT"]
+DependencyOrigin = Literal["DETERMINISTIC", "LLM"]
 MutationStatus = Literal["PLANNED", "SENT", "CONFIRMED", "UNKNOWN", "FAILED"]
 CriterionKind = Literal["CONSTRAINT", "PREFERENCE", "OPTIMIZATION"]
 
@@ -86,6 +89,37 @@ class FactCandidate(BaseModel):
     value: Any
 
 
+class DependencyHint(BaseModel):
+    """A bounded semantic suggestion from the light planner.
+
+    Hints never carry runtime IDs, strength, or blocking authority. The
+    deterministic dependency validator resolves them against registered Needs.
+    """
+
+    entity: str = Field(min_length=1, max_length=80)
+    aspect: str = Field(min_length=1, max_length=80)
+    source: Literal["USER", "POLICY", "TOOL"] | None = None
+    reason_code: str = "semantic_prerequisite"
+
+
+class NeedDependency(BaseModel):
+    kind: DependencyKind
+    strength: DependencyStrength = "HARD"
+    origin: DependencyOrigin = "DETERMINISTIC"
+    reason_code: str
+    upstream_semantic_key: str | None = None
+    entity: str | None = None
+    aspect: str | None = None
+    expected_value: Any | None = None
+    require_authoritative: bool = True
+    require_verified: bool = False
+    mutation_tool: str | None = None
+    mutation_signature: str | None = None
+    required_mutation_statuses: list[MutationStatus] = Field(
+        default_factory=lambda: ["SENT", "CONFIRMED", "UNKNOWN"]
+    )
+
+
 class NeedCandidate(BaseModel):
     entity: str
     aspect: str = Field(min_length=1, max_length=80)
@@ -102,6 +136,7 @@ class NeedCandidate(BaseModel):
     query_id: str | None = None
     query_objective: str | None = None
     max_attempts: int | None = Field(default=None, ge=1, le=10)
+    dependency_hints: list[DependencyHint] = Field(default_factory=list, max_length=4)
 
 class InformationNeed(BaseModel):
     id: str
@@ -136,6 +171,7 @@ class InformationNeed(BaseModel):
     query_objective: str | None = None
     max_attempts: int | None = Field(default=None, ge=1, le=10)
     status_reason: str | None = None
+    dependencies: list[NeedDependency] = Field(default_factory=list)
 
 class ToolCallRecord(BaseModel):
     name: str
@@ -222,6 +258,7 @@ class ControlState(BaseModel):
     retrieval_events: list[dict[str, Any]] = Field(default_factory=list)
     context_compressor_events: list[dict[str, Any]] = Field(default_factory=list)
     need_selection_events: list[dict[str, Any]] = Field(default_factory=list)
+    dependency_events: list[dict[str, Any]] = Field(default_factory=list)
     acquisition_events: list[dict[str, Any]] = Field(default_factory=list)
     progress_events: list[dict[str, Any]] = Field(default_factory=list)
     no_progress_count: int = 0
