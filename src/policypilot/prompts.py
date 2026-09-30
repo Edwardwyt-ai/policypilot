@@ -20,9 +20,10 @@ is not automatically a new target.
 
 A NeedCandidate states one missing proposition required for the current goal.
 Use a canonical aspect when one fits. Otherwise preserve a concise dynamic aspect
-instead of dropping it or mapping it to broad "policy" or "requirement". POLICY
-needs must name a specific missing policy proposition. TOOL needs must name an
-exact supplied read capability. USER needs ask for a missing user fact. Mark a
+instead of dropping it or mapping it to broad "policy" or "requirement". The
+source field is only a non-authoritative acquisition hint and may be omitted when
+uncertain. A POLICY hint names a specific missing policy proposition. A TOOL hint
+may name an exact supplied read capability. A USER hint asks for a missing user fact. Mark a
 candidate CRITICAL only when it directly blocks the current decision or a safe
 required action; background, comparative, or helpful information is OPTIONAL.
 Return no more than six NeedCandidates in one delta. Prefer the smallest set of

@@ -294,8 +294,13 @@ def resolve_user_needs(state: PolicyPilotState) -> None:
         if need.aspect == "customer_identifier" and fact is None:
             fact = state.get_fact("user_id", "user") or state.get_fact("email", "user") or state.get_fact("phone_number", "user")
         if fact:
-            state.resolve_need(need, evidence_refs=[fact.evidence_ref] if fact.evidence_ref else [], fact_id=fact.id)
-            state.control.needs_resolved_count += 1
+            fully_resolved = state.resolve_need(
+                need,
+                evidence_refs=[fact.evidence_ref] if fact.evidence_ref else [],
+                fact_id=fact.id,
+            )
+            if fully_resolved:
+                state.control.needs_resolved_count += 1
         elif (
             need.aspect == "customer_identifier"
             and state.intent not in {"STATUS_CHECK", "TRANSACTIONAL"}

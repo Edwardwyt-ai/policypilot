@@ -21,6 +21,140 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Final Response Judge V1
+
+- Date: 2026-09-27
+- Status: implemented, unit-verified, and one-call API-smoke-verified
+- Parent: current PolicyPilot working tree
+
+### Evaluation Architecture
+
+- Added an evaluator-only Final Response Judge for saved `results.json` files.
+- The judge uses three structured dimensions only: correctness, completeness,
+  and grounded safety. `semantic_score` is their mean and `semantic_pass`
+  requires all three dimensions with no critical error.
+- Added sidecar Gold for the existing 67-task Need evaluation set. Criteria are
+  derived from reviewed Need descriptions and completion conditions and are
+  never exposed to the PolicyPilot runtime.
+- Added bounded evidence-packet extraction that labels user messages, agent
+  responses, tool calls, tool results, and tau3 DB outcomes separately.
+- The default judge route is `deepseek/deepseek-chat`, reusing the existing
+  `DEEPSEEK_API_KEY`; `POLICYPILOT_JUDGE_MODEL` can override it.
+- A one-call `deepseek-reasoner` smoke produced truncated JSON after exhausting
+  its output budget. The structured Judge therefore defaults to `deepseek-chat`
+  and retries one malformed response with a compact repair request.
+- Original tau3 DB/Action rewards remain unchanged and are reported separately.
+
+### Verification Evidence
+
+- Final-response Judge unit tests: `3 passed`.
+- Observability/Gold regression selection: `15 passed`.
+- Ruff passed for the Judge module, Gold builder, evaluator CLI, and tests.
+- Generated and schema-validated evaluator-only criteria for all 67 selected
+  tasks.
+- A real `deepseek-chat` smoke on a saved failed `task_001` trajectory returned
+  valid JSON in 2.05 seconds with 4,669 input tokens, 283 output tokens, and
+  reported cost 0.0017403. All three semantic dimensions failed, consistently
+  with the saved tau3 Reward 0 and DB Check false.
+- No benchmark task was rerun and no original task/evaluator criterion changed.
+
+## Unreleased - Bounded Context Reference Rehydration V1
+
+- Date: 2026-09-26
+- Status: implemented and full-unit-verified; benchmark not run
+- Parent: Unreleased - Qdrant Policy Index V1
+
+### Architecture
+
+- Added an explicit deterministic `hydrate_context` graph node between
+  decision-ready Need routing and `build_context`.
+- Reused existing `payload_ref`, `evidence_refs`, `policy_refs`, raw payloads,
+  and Context Manifest provenance instead of introducing a parallel memory or
+  evidence state tree.
+- Context summaries now expose resolvable Evidence, payload, and policy-document
+  references. Rehydrated Evidence and Need IDs are included in the canonical
+  Context Manifest surface.
+- Rehydration is restricted to lossy task-local Tool Evidence that is linked to
+  a Need or textually relevant to the current Goal. Raw user payloads are never
+  automatically rehydrated.
+
+### Behavior And Budgets
+
+- Policy references are re-extracted against the current Goal/Need focus;
+  transaction payloads are re-projected through the existing deterministic tool
+  projection rather than copied into the prompt verbatim.
+- A decision context may load at most two references, 1,200 content characters
+  per reference, and 2,400 content characters in total. Duplicate payload
+  references are loaded once per context.
+- Rehydrated content is a separately bounded context channel and remains subject
+  to the existing total-context compressor threshold.
+- Each hydration event records payload refs, Evidence IDs, Need IDs, character
+  count, and reference count for trajectory attribution.
+
+### Verification Evidence
+
+- Context reference, provenance, model-routing regression: `17 passed`.
+- Full PolicyPilot regression: `137 passed`.
+- Full banking knowledge regression: `502 passed, 85 skipped`.
+- Ruff and Python compilation checks passed. Warnings were limited to existing
+  host/deprecation configuration warnings.
+- No API-backed benchmark or task evaluation was run.
+
+## Unreleased - Qdrant Policy Index V1
+
+- Date: 2026-09-26
+- Status: implemented and banking-knowledge-unit-verified; benchmark not run
+- Parent: Unreleased - Decision-Closed Need Lifecycle V1
+
+### Architecture
+
+- Migrated the `local_hybrid` dense retrieval backend from direct NumPy matrix
+  search to a Qdrant collection while preserving BM25 fusion, reranking, source
+  aggregation, and the external `KB_search` contract.
+- Added embedded local persistence as the default and URL/API-key configuration
+  for Qdrant Server or Cloud. NumPy remains an explicit rollback backend and the
+  source artifact used by the deterministic migration command.
+- Collection metadata validates model, chunk hash, row count, dimensions, and
+  distance before serving queries. Point payloads preserve row/chunk/document
+  identity and source metadata.
+- Local Qdrant clients are reference-counted per resolved path so concurrent
+  Environment objects in one evaluation process do not compete for the same
+  storage lock.
+
+### Migration Evidence
+
+- Imported 1,029 normalized 1,024-dimensional vectors from the existing
+  `qwen3-embedding:0.6b` NumPy index into `banking_policy_chunks_v1`.
+- Source chunk hash: `444e68b383ac18dbc6f522c4572e0ecc476f7833a0aec1b2e95a124dbeffa5fb`.
+- Verified payload/vector alignment for rows 0, 514, and 1,028.
+- Compared five source-row queries against NumPy exact Top-30: every query had
+  30/30 overlap and identical rank order; maximum score difference was below
+  `1.4e-7`.
+- Local Qdrant storage size after migration was approximately 12.7 MB.
+
+### Verification Evidence
+
+- Qdrant and hybrid retrieval regression: `9 passed`.
+- Full banking knowledge regression: `502 passed, 85 skipped`; only existing
+  host/deprecation warnings were emitted.
+- Runtime construction confirmed that `local_hybrid` loaded
+  `QdrantDenseIndex`, collection `banking_policy_chunks_v1`, with 1,029 points.
+- A live local query for a personal no-annual-fee cashback card completed through
+  Ollama query embedding, Qdrant retrieval, and local reranking, returning the
+  relevant no-annual-fee personal-card policy.
+- Ruff checks and Python compilation passed for the changed Python modules.
+
+### Compatibility And Operations
+
+- Added the `qdrant-client` knowledge dependency and environment variables
+  `POLICYPILOT_QDRANT_PATH`, `POLICYPILOT_QDRANT_COLLECTION`,
+  `POLICYPILOT_QDRANT_URL`, and `POLICYPILOT_QDRANT_API_KEY`.
+- Run `python scripts/migrate_policy_vectors_to_qdrant.py` after rebuilding or
+  changing the chunk/embedding index. Existing collections require the explicit
+  `--recreate` flag.
+- No tau2/tau3 Orchestrator, Environment tool execution, hidden task criteria,
+  or Evaluator semantics changed. No API-backed benchmark was run.
+
 ## Unreleased - Decision-Closed Need Lifecycle V1
 
 - Date: 2026-09-21
@@ -747,6 +881,140 @@ and their results were recorded.
   current hybrid feature reranker. Evaluate recorded real Agent queries before
   retuning hybrid weights; anchor and lexical coverage should not dominate on
   long, instruction-heavy queries.
+
+## Superseded - Jev Acquisition Planning Prototype
+
+- Date: 2026-09-27
+- Status: superseded before benchmark execution
+- Parent: current PolicyPilot Need-routing baseline
+
+### Architecture
+
+- Made semantic Need identity independent of evidence source and represented
+  policy, live-tool, and user acquisitions as bounded child plans.
+- Added an optional Jev System One adapter for semantic source ambiguity. Hard
+  capability validation, required tool arguments, lifecycle transitions, and
+  tool execution remain deterministic and local.
+- Jev receives only canonical Need fields, hard-criterion field names,
+  available fact field names, and eligible read-tool descriptions. User
+  messages, fact values, account identifiers, and hard-criterion values are
+  excluded from its request state.
+
+### Behavior
+
+- One semantic Need can require multiple authoritative acquisitions, such as a
+  policy rule followed by current account state, without creating duplicate
+  Needs.
+- Jev is called only for bounded semantic-planner candidates. Deterministic
+  candidates bypass it, and missing credentials, errors, or low-confidence
+  answers fall back to the planner's existing source hint.
+- Jev may select only read capabilities whose required arguments are already
+  available and locally schema-valid. It cannot call tools or authorize writes.
+
+### Compatibility
+
+- tau2/tau3 orchestration, environment tool execution, evaluator behavior, and
+  the public `KB_search` contract are unchanged.
+- Legacy source-prefixed checkpoint keys remain structurally matchable during
+  guard recovery.
+- At this checkpoint Laya was not retained. The following version replaces
+  this cloud adapter with a local Laya runtime.
+
+### Verification Evidence
+
+- Acquisition unit tests cover multi-source compilation, sequential
+  completion, cloud-payload redaction, HTTP endpoint/auth construction,
+  no-key fallback, and source-free Need merging.
+- Final PolicyPilot regression: 143 passed, with two pre-existing warnings
+  (`audioop` deprecation and an unknown asyncio pytest option). Ruff also
+  passed for the Jev acquisition and lifecycle changes.
+- No live Jev request, paid API call, or benchmark task was run because no
+  TypeSafe API key was configured.
+
+### Known Issues And Next Decision
+
+- This prototype was superseded because Jev requires paid, early-access cloud
+  credentials that were not immediately available to the project.
+- Thresholds are configuration defaults, not benchmark-tuned constants. Keep
+  deterministic fallback telemetry and compare route accuracy before changing
+  them.
+
+## Unreleased - Local Laya Acquisition Routing V1
+
+- Date: 2026-09-27
+- Status: local runtime integrated; unit and local smoke verification complete
+- Parent: Superseded - Jev Acquisition Planning Prototype
+
+### Architecture
+
+- Replaced the TypeSafe/Jev cloud adapter with `laya==0.3.20` running directly
+  inside the PolicyPilot Python process. No API key, HTTP service, or background
+  model process is required.
+- Uses `convaiinnovations/laya` on CUDA when configured, loads lazily, and keeps
+  one model resident for subsequent routing calls. Model files are cached under
+  `.cache/huggingface`, which is ignored by Git.
+- Laya chooses one bounded acquisition plan: policy, tool, user, or a supported
+  two-source combination. It separately chooses from locally enumerated read
+  capabilities; deterministic code still validates tool type, arguments, and
+  schema before creating an acquisition.
+
+### Behavior
+
+- Only semantic-planner candidates are sent to Laya. Deterministic candidates
+  bypass it, and at most three semantic candidates are reviewed per turn.
+- A Laya plan must reach 0.75 confidence, and a selected tool must independently
+  reach 0.75 confidence. Otherwise the existing planner hint is retained.
+- Tool choice is capped at nine read tools plus `NONE`. This remains below the
+  checkpoint's warned 11-plus-choice calibration range and keeps the compact
+  request close to its 512-token input budget.
+- User messages and fact values are excluded; Laya receives canonical Need
+  fields, available fact field names, hard-criterion field names, and bounded
+  tool descriptions.
+
+### Compatibility
+
+- tau2/tau3 orchestration, environment execution, evaluator behavior, main-LLM
+  tool permissions, and the `KB_search` contract are unchanged.
+- Loading or inference failure is recorded and falls back without blocking the
+  outer Agent turn.
+- The Laya dependency is an optional `laya` project extra and is pinned to
+  `0.3.20`; the current virtual environment has that package installed.
+
+### Verification Evidence
+
+- Hardware detected: NVIDIA GeForce RTX 3070 Laptop GPU, 8 GB VRAM; CUDA was
+  available through Torch 2.14.0+cu126.
+- First model download and load took 164.817 seconds; the first measured
+  inference took 797.828 ms. After caching, three sequential decision calls in
+  one process took 487.37 ms total.
+- A real local CUDA pytest smoke passed with zero output tokens and no API key.
+- Unit coverage includes multi-source compilation, sequential completion,
+  redaction, lazy single-load behavior, low-confidence fallback, no-backend
+  fallback, and source-free Need merging.
+- Final PolicyPilot regression: 144 passed and one opt-in local-model test was
+  skipped; the explicit local-model smoke passed separately. Ruff passed.
+
+### Known Issues And Next Decision
+
+- Offline evaluation report:
+  `data/analyses/laya_need_routing_20260927_152242.json`.
+- Source-plan evaluation used all 267 Gold Needs from 67 tasks. Only the Need
+  description was model-visible; ids, completion conditions, and labels were
+  withheld. Raw exact accuracy was 1.12%, source macro-F1 was 0.3952, and no
+  task had every Need routed correctly. The model predicted
+  `POLICY_AND_TOOL` for 264/267 examples and never predicted a USER source.
+- At the 0.75 gate, plan coverage was 4.12% (11/267) and selective accuracy was
+  0%. ECE was 0.5542. The current acquisition-plan formulation must not be
+  treated as authoritative or have its threshold lowered.
+- In a separate bounded capability proxy, each of 171 transaction-tool Needs
+  received its Gold capability plus deterministic distractors, capped at nine.
+  Overall Hit@1 was 75.44%; the 106 read/verification Needs reached 73.58%
+  Hit@1 and 81.36% selective accuracy at 55.66% coverage. Mean capability
+  latency was 29.11 ms on CUDA.
+- The capability proxy uses semantic capability families, not the actual
+  runtime-ready tool set and arguments. Its positive result supports testing
+  Laya as a reranker after deterministic candidate generation, not as the
+  authority that decides POLICY/TOOL/USER source.
 
 ## Entry Template
 

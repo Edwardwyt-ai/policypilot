@@ -92,7 +92,13 @@ def _selected_records(
     return facts, evidence, needs
 
 
-def _summary(state: PolicyPilotState, tools: list[Tool], config: PolicyPilotConfig, memory_context: str = "") -> str:
+def _summary(
+    state: PolicyPilotState,
+    tools: list[Tool],
+    config: PolicyPilotConfig,
+    memory_context: str = "",
+    rehydrated_context: str = "",
+) -> str:
     goal = state.goal
     facts, evidence, selected_needs = _selected_records(state, config, tools)
     criteria = "\n".join(
@@ -110,7 +116,10 @@ def _summary(state: PolicyPilotState, tools: list[Tool], config: PolicyPilotConf
         for f in facts
     ) or "None"
     evidence_text = "\n".join(
-        f"- {e.source_type}:{e.tool_name or 'user'} {_compact(e.summary, 500)}"
+        f"- evidence_id={e.evidence_id}; payload_ref={e.payload_ref or 'none'}; "
+        f"source={e.source_type}:{e.tool_name or 'user'}; "
+        f"documents={','.join(ref.document_id for ref in e.policy_refs) or 'none'} "
+        f"{_compact(e.summary, 500)}"
         for e in evidence
     ) or "None"
     errors = "\n".join(
@@ -123,6 +132,11 @@ def _summary(state: PolicyPilotState, tools: list[Tool], config: PolicyPilotConf
     fact_text = bound_channel("facts", fact_text)
     evidence_text = bound_channel("evidence", evidence_text)
     memory_context = bound_channel("memory", memory_context) if memory_context else ""
+    rehydrated_context = (
+        bound_channel("rehydrated", rehydrated_context)
+        if rehydrated_context
+        else ""
+    )
     sections = [
         "<policypilot_context>",
         f"GOAL\nobjective={goal.objective or 'None'}\ntarget={goal.target or 'None'}\ncomparative={goal.comparative}\n{criteria}",
@@ -131,9 +145,15 @@ def _summary(state: PolicyPilotState, tools: list[Tool], config: PolicyPilotConf
         f"OPEN INFORMATION NEEDS\n{needs}",
         f"RELEVANT FACTS\n{fact_text}",
         f"RELEVANT EVIDENCE\n{evidence_text}",
-        f"CONTROL\nretrievals={state.control.goal_retrieval_call_count}/{config.max_goal_retrieval_calls}; mutation_verification={state.control.mutation_verification_required}\nerrors={errors}",
-        "AVAILABLE TOOLS\n" + ", ".join(tool.name for tool in tools),
     ]
+    if rehydrated_context:
+        sections.append(rehydrated_context)
+    sections.extend(
+        [
+            f"CONTROL\nretrievals={state.control.goal_retrieval_call_count}/{config.max_goal_retrieval_calls}; mutation_verification={state.control.mutation_verification_required}\nerrors={errors}",
+            "AVAILABLE TOOLS\n" + ", ".join(tool.name for tool in tools),
+        ]
+    )
     if memory_context:
         sections.append(memory_context)
     sections.append("</policypilot_context>")
@@ -157,6 +177,10 @@ def build_agent_context(
     *,
     memory_context: str = "",
     memory_ids: list[str] | None = None,
+    rehydrated_context: str = "",
+    rehydrated_refs: list[str] | None = None,
+    rehydrated_evidence_ids: list[str] | None = None,
+    rehydrated_need_ids: list[str] | None = None,
     skill_guidance: str = "",
     skills: list[str] | None = None,
     model: str = "unknown",
@@ -174,7 +198,13 @@ def build_agent_context(
         else:
             compacted.append(message)
     compacted = _bound_recent(compacted)
-    summary = _summary(state, tools, config, memory_context)
+    summary = _summary(
+        state,
+        tools,
+        config,
+        memory_context,
+        rehydrated_context,
+    )
     skill_messages = (
         [SystemMessage(role="system", content=f"<decision_skill_guidance>\n{bound_channel('skills', skill_guidance)}\n</decision_skill_guidance>")]
         if skill_guidance
@@ -231,14 +261,34 @@ def build_agent_context(
         run_id=state.run_id,
         turn_id=len(state.messages),
         fact_ids=[item.id for item in selected_facts],
-        evidence_ids=[item.evidence_id for item in selected_evidence],
-        need_ids=[item.id for item in selected_needs],
+        evidence_ids=list(
+            dict.fromkeys(
+                [
+                    *(item.evidence_id for item in selected_evidence),
+                    *(rehydrated_evidence_ids or []),
+                ]
+            )
+        ),
+        need_ids=list(
+            dict.fromkeys(
+                [
+                    *(item.id for item in selected_needs),
+                    *(rehydrated_need_ids or []),
+                ]
+            )
+        ),
         memory_ids=list(memory_ids or []),
         skills=list(skills or []),
         exposed_tools=[tool.name for tool in tools],
         model=model,
         prompt_version=prompt_version,
-        metadata={"estimated_chars": size, "compressed": compressed},
+        metadata={
+            "estimated_chars": size,
+            "compressed": compressed,
+            "rehydrated_refs": list(rehydrated_refs or []),
+            "rehydrated_evidence_ids": list(rehydrated_evidence_ids or []),
+            "rehydrated_need_ids": list(rehydrated_need_ids or []),
+        },
     )
     manifest.metadata.update(
         {
@@ -248,6 +298,10 @@ def build_agent_context(
                 "recent_messages": sum(len(item.content or "") for item in compacted),
                 "skills": min(len(skill_guidance), CHANNEL_BUDGETS["skills"].maximum),
                 "memory": min(len(memory_context), CHANNEL_BUDGETS["memory"].maximum),
+                "rehydrated": min(
+                    len(rehydrated_context),
+                    CHANNEL_BUDGETS["rehydrated"].maximum,
+                ),
             },
         }
     )

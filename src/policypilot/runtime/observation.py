@@ -47,6 +47,7 @@ class ObservationHost(Protocol):
     config: Any
     llm_runtime: Any
     semantic_planner: Any
+    acquisition_planner: Any
     need_registry: Any
     source_resolver: Any
     need_resolver: Any
@@ -226,6 +227,7 @@ def observe(
                 state, {item.name for item in host.source_resolver.capabilities}
             )
         )
+        candidates = host.acquisition_planner.plan(state, candidates, turn=turn)
         host.need_registry.register_many(state, candidates, turn=turn)
         resolve_user_needs(state)
         for need in state.open_needs():
@@ -408,16 +410,22 @@ def observe_tool_message(
                         status = apply_mutation_readback(state, message.id, content)
                         if status in {"CONFIRMED", "FAILED"}:
                             if need.status != "RESOLVED":
-                                state.resolve_need(need, evidence_refs=[message.id])
-                                state.control.needs_resolved_count += 1
+                                fully_resolved = state.resolve_need(
+                                    need, evidence_refs=[message.id]
+                                )
+                                if fully_resolved:
+                                    state.control.needs_resolved_count += 1
                             state.control.mutation_verification_required = False
                             state.control.unsafe_to_retry = False
                             state.resolve_latest_error(
                                 PolicyPilotErrorType.MUTATION_UNCERTAIN
                             )
                     elif need.status != "RESOLVED" and _read_result_is_conclusive(content):
-                        state.resolve_need(need, evidence_refs=[message.id])
-                        state.control.needs_resolved_count += 1
+                        fully_resolved = state.resolve_need(
+                            need, evidence_refs=[message.id]
+                        )
+                        if fully_resolved:
+                            state.control.needs_resolved_count += 1
                 if acquisition is not None:
                     acquisition["final_status"] = need.status
         if not retrieval:

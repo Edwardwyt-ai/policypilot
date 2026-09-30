@@ -69,11 +69,13 @@ class NeedResolver:
                 continue
             if need.source == "TOOL" and not self._tool_fact_reusable(need, fact, state):
                 continue
-            need.status = "RESOLVED"
-            need.resolved_by_fact_id = fact.id
-            if fact.evidence_ref and fact.evidence_ref not in need.evidence_refs:
-                need.evidence_refs.append(fact.evidence_ref)
-            state.control.needs_resolved_count += 1
+            fully_resolved = state.resolve_need(
+                need,
+                evidence_refs=[fact.evidence_ref] if fact.evidence_ref else [],
+                fact_id=fact.id,
+            )
+            if fully_resolved:
+                state.control.needs_resolved_count += 1
             if need.source == "TOOL" and self.config.task_fact_reuse_enabled:
                 state.control.task_fact_reuse_hit += 1
 

@@ -23,6 +23,9 @@ NeedStatus = Literal[
     "EXHAUSTED",
 ]
 NeedPurpose = Literal["PLANNING", "PRE_MUTATION", "VERIFICATION"]
+AcquisitionStatus = Literal[
+    "OPEN", "REQUESTED", "RESOLVED", "NOT_APPLICABLE", "EXHAUSTED"
+]
 DependencyKind = Literal["NEED", "FACT", "MUTATION"]
 DependencyStrength = Literal["HARD", "SOFT"]
 DependencyOrigin = Literal["DETERMINISTIC", "LLM"]
@@ -120,11 +123,32 @@ class NeedDependency(BaseModel):
     )
 
 
+class AcquisitionCandidate(BaseModel):
+    """One bounded way to acquire evidence for a semantic Need."""
+
+    source: Literal["USER", "POLICY", "TOOL"]
+    capability: str | None = None
+    tool_arguments: dict[str, Any] = Field(default_factory=dict)
+    required: bool = True
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    origin: Literal["DETERMINISTIC", "LAYA", "PLANNER_FALLBACK"] = "DETERMINISTIC"
+
+
+class AcquisitionPlan(AcquisitionCandidate):
+    id: str
+    status: AcquisitionStatus = "OPEN"
+    attempts: int = 0
+    evidence_refs: list[str] = Field(default_factory=list)
+    status_reason: str | None = None
+
+
 class NeedCandidate(BaseModel):
     entity: str
     aspect: str = Field(min_length=1, max_length=80)
     scope: str | None = None
-    source: Literal["USER", "POLICY", "TOOL"]
+    # A planner source is only an acquisition hint. The Need identity itself is
+    # source-free; AcquisitionPlanner compiles one or more authoritative routes.
+    source: Literal["USER", "POLICY", "TOOL"] | None = None
     capability: str | None = None
     criticality: Literal["CRITICAL", "OPTIONAL"] = "OPTIONAL"
     reason_code: str | None = None
@@ -137,6 +161,7 @@ class NeedCandidate(BaseModel):
     query_objective: str | None = None
     max_attempts: int | None = Field(default=None, ge=1, le=10)
     dependency_hints: list[DependencyHint] = Field(default_factory=list, max_length=4)
+    acquisitions: list[AcquisitionCandidate] = Field(default_factory=list, max_length=4)
 
 class InformationNeed(BaseModel):
     id: str
@@ -172,6 +197,34 @@ class InformationNeed(BaseModel):
     max_attempts: int | None = Field(default=None, ge=1, le=10)
     status_reason: str | None = None
     dependencies: list[NeedDependency] = Field(default_factory=list)
+    acquisitions: list[AcquisitionPlan] = Field(default_factory=list)
+    active_acquisition_id: str | None = None
+
+    def activate_next_acquisition(self) -> AcquisitionPlan | None:
+        active = next(
+            (
+                item
+                for item in self.acquisitions
+                if item.id == self.active_acquisition_id
+                and item.status in {"OPEN", "REQUESTED"}
+            ),
+            None,
+        )
+        if active is None:
+            active = next(
+                (
+                    item
+                    for item in self.acquisitions
+                    if item.required and item.status == "OPEN"
+                ),
+                None,
+            )
+            self.active_acquisition_id = active.id if active else None
+        if active is not None:
+            self.source = active.source
+            self.capability = active.capability
+            self.tool_arguments = dict(active.tool_arguments)
+        return active
 
 class ToolCallRecord(BaseModel):
     name: str
@@ -254,9 +307,11 @@ class ControlState(BaseModel):
     embedding_cache_hits: int = 0
     embedding_cache_misses: int = 0
     planner_events: list[dict[str, Any]] = Field(default_factory=list)
+    acquisition_planning_events: list[dict[str, Any]] = Field(default_factory=list)
     need_registry_events: list[dict[str, Any]] = Field(default_factory=list)
     retrieval_events: list[dict[str, Any]] = Field(default_factory=list)
     context_compressor_events: list[dict[str, Any]] = Field(default_factory=list)
+    context_rehydration_events: list[dict[str, Any]] = Field(default_factory=list)
     need_selection_events: list[dict[str, Any]] = Field(default_factory=list)
     dependency_events: list[dict[str, Any]] = Field(default_factory=list)
     acquisition_events: list[dict[str, Any]] = Field(default_factory=list)
@@ -331,7 +386,13 @@ class PolicyPilotState(BaseModel):
 
     def open_needs(self, source: NeedSource | None = None) -> list[InformationNeed]:
         active = {"OPEN", "PARTIALLY_COVERED", "REOPENED"}
-        result = [n for n in self.information_needs if n.status in active and (source is None or n.source == source)]
+        result = []
+        for need in self.information_needs:
+            if need.status not in active:
+                continue
+            need.activate_next_acquisition()
+            if source is None or need.source == source:
+                result.append(need)
         return sorted(result, key=lambda n: (-n.critical, -n.priority, n.created_turn))
 
     def resolved_needs(self) -> list[InformationNeed]:
@@ -347,12 +408,29 @@ class PolicyPilotState(BaseModel):
         *,
         evidence_refs: list[str],
         fact_id: str | None = None,
-    ) -> None:
-        need.status = "RESOLVED"
+    ) -> bool:
         need.evidence_refs = list(dict.fromkeys([*need.evidence_refs, *evidence_refs]))
         need.resolved_by_fact_id = fact_id
+        active = need.activate_next_acquisition()
+        if active is not None:
+            active.status = "RESOLVED"
+            active.evidence_refs = list(
+                dict.fromkeys([*active.evidence_refs, *evidence_refs])
+            )
+            active.status_reason = "authoritative_evidence"
+            need.active_acquisition_id = None
+            if any(
+                item.required and item.status != "RESOLVED"
+                for item in need.acquisitions
+            ):
+                need.status = "OPEN"
+                need.status_reason = "awaiting_required_acquisition"
+                need.activate_next_acquisition()
+                return False
+        need.status = "RESOLVED"
         need.resolved_at = datetime.now(timezone.utc)
         need.status_reason = "authoritative_evidence"
+        return True
 
     @staticmethod
     def reopen_need(need: InformationNeed, *, reason: str, turn: int) -> None:
@@ -365,6 +443,12 @@ class PolicyPilotState(BaseModel):
         need.resolved_at = None
         need.status_reason = reason
         need.updated_turn = turn
+        for acquisition in need.acquisitions:
+            if acquisition.required:
+                acquisition.status = "OPEN"
+                acquisition.status_reason = reason
+        need.active_acquisition_id = None
+        need.activate_next_acquisition()
 
     @staticmethod
     def mark_not_applicable(
@@ -377,6 +461,10 @@ class PolicyPilotState(BaseModel):
         need.status_reason = reason
         need.updated_turn = turn
         need.resolved_at = datetime.now(timezone.utc)
+        for acquisition in need.acquisitions:
+            if acquisition.status in {"OPEN", "REQUESTED"}:
+                acquisition.status = "NOT_APPLICABLE"
+                acquisition.status_reason = reason
 
     def add_error(self, error_type: str | PolicyPilotErrorType, message: str, *, source: str = "policypilot", retryable: bool = False, recovery_action: str | None = None, unsafe_to_retry: bool = False, attempts: int = 0) -> ErrorRecord:
         try:

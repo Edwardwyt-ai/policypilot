@@ -7,6 +7,7 @@ from typing import Any, Literal, Protocol, TypedDict, cast
 from langgraph.graph import END, START, StateGraph
 
 from policypilot.config import PolicyPilotConfig
+from policypilot.context_refs import RehydratedContext, hydrate_context_refs
 from policypilot.dependencies import dependency_snapshot
 from policypilot.errors import PolicyPilotErrorType
 from policypilot.needs import (
@@ -31,6 +32,7 @@ class PolicyPilotGraphState(TypedDict, total=False):
     proposed_action: AssistantMessage
     final_action: AssistantMessage
     active_need: InformationNeed
+    rehydrated_context: RehydratedContext
     validation_error: str
     validation_result: ValidationResult
     recovery_exhausted: bool
@@ -99,6 +101,7 @@ Route = Literal[
     "retrieve_policy",
     "read_tool",
     "unknown",
+    "hydrate_context",
     "decision",
     "validate",
     "finalize",
@@ -118,6 +121,7 @@ class PolicyPilotWorkflow:
             "retrieve_policy",
             "read_tool",
             "unknown",
+            "hydrate_context",
             "build_context",
             "decision",
             "validate",
@@ -149,11 +153,12 @@ class PolicyPilotWorkflow:
                 "retrieve_policy": "retrieve_policy",
                 "read_tool": "read_tool",
                 "unknown": "unknown",
-                "decision": "build_context",
+                "decision": "hydrate_context",
             },
         )
         for name in ("ask_user", "retrieve_policy", "read_tool", "unknown"):
             graph.add_edge(name, "finalize")
+        graph.add_edge("hydrate_context", "build_context")
         graph.add_edge("build_context", "decision")
         graph.add_conditional_edges(
             "decision",
@@ -282,6 +287,10 @@ class PolicyPilotWorkflow:
 
     def ask_user(self, gs):
         need = gs["active_need"]
+        acquisition = need.activate_next_acquisition()
+        if acquisition is not None:
+            acquisition.status = "REQUESTED"
+            acquisition.attempts += 1
         need.acquisition_count += 1
         gs["policy_state"].control.acquisition_events.append({
             "turn": len(gs["policy_state"].messages),
@@ -303,6 +312,7 @@ class PolicyPilotWorkflow:
     def retrieve_policy(self, gs):
         state = gs["policy_state"]
         need = gs["active_need"]
+        acquisition = need.activate_next_acquisition()
         tool = knowledge_tool(self.host.tools)
         if tool is None:
             return self.trace(
@@ -325,6 +335,9 @@ class PolicyPilotWorkflow:
                 ),
             )
         self.host._record_valid_tool_calls(message, state, need.id)
+        if acquisition is not None:
+            acquisition.status = "REQUESTED"
+            acquisition.attempts += 1
         return self.trace(
             gs, "retrieve_policy", policy_state=state, final_action=message
         )
@@ -332,6 +345,7 @@ class PolicyPilotWorkflow:
     def read_tool(self, gs):
         state = gs["policy_state"]
         need = gs["active_need"]
+        acquisition = need.activate_next_acquisition()
         call = self.host._tool_call_for_need(need, state)
         if call is None:
             return self.trace(
@@ -352,6 +366,9 @@ class PolicyPilotWorkflow:
                 ),
             )
         self.host._record_valid_tool_calls(message, state, need.id)
+        if acquisition is not None:
+            acquisition.status = "REQUESTED"
+            acquisition.attempts += 1
         return self.trace(gs, "read_tool", policy_state=state, final_action=message)
 
     def unknown(self, gs):
@@ -373,14 +390,41 @@ class PolicyPilotWorkflow:
             final_action=AssistantMessage.text(text),
         )
 
+    def hydrate_context(self, gs):
+        state = gs["policy_state"]
+        result = hydrate_context_refs(state, self.host.config)
+        state.control.context_rehydration_events.append(
+            {
+                "turn": len(state.messages),
+                "payload_refs": result.payload_refs,
+                "evidence_ids": result.evidence_ids,
+                "need_ids": result.need_ids,
+                "reference_count": len(result.references),
+                "content_chars": sum(
+                    len(item.content) for item in result.references
+                ),
+            }
+        )
+        return self.trace(
+            gs,
+            "hydrate_context",
+            policy_state=state,
+            rehydrated_context=result,
+        )
+
     def build_context(self, gs):
         state = gs["policy_state"]
+        rehydrated = gs.get("rehydrated_context", RehydratedContext())
         context = build_agent_context(
             state,
             self.host._decision_tools(state),
             self.host.config,
             memory_context=self.host._memory_context(),
             memory_ids=self.host._memory_ids(),
+            rehydrated_context=rehydrated.render(),
+            rehydrated_refs=rehydrated.payload_refs,
+            rehydrated_evidence_ids=rehydrated.evidence_ids,
+            rehydrated_need_ids=rehydrated.need_ids,
             skill_guidance=self.host._skill_guidance("decision", state),
             skills=self.host._active_skill_ids(),
             model=self.host._decision_model(),

@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 
 from policypilot.coverage import EvidenceResolver
 from policypilot.dependencies import DependencyManager
-from policypilot.state import InformationNeed, NeedCandidate, PolicyPilotState
+from policypilot.state import (
+    AcquisitionCandidate,
+    AcquisitionPlan,
+    InformationNeed,
+    NeedCandidate,
+    PolicyPilotState,
+)
 from policypilot.taxonomy import canonical_entity, canonicalize_aspect, normalize_text
 
 
@@ -77,7 +84,7 @@ class NeedManager:
     def semantic_key(cls, candidate: NeedCandidate, state: PolicyPilotState | None = None) -> str:
         value = state or PolicyPilotState(system_messages=[])
         entity, aspect, scope, _ = cls._normalized_candidate(value, candidate)
-        base = f"{candidate.source}|{entity}|{aspect}|{scope or '*'}"
+        base = f"{entity}|{aspect}|{scope or '*'}"
         requirement = cls._requirement_fingerprint(value, aspect)
         if requirement:
             base = f"{base}|requirement:{requirement}"
@@ -123,7 +130,64 @@ class NeedManager:
                 or aspect in hard_aspects
             )
         )
-        return goal_relevant and candidate.source in {"USER", "POLICY", "TOOL"}
+        return goal_relevant and bool(
+            candidate.acquisitions
+            or candidate.source in {"USER", "POLICY", "TOOL"}
+        )
+
+    @staticmethod
+    def _candidate_acquisitions(candidate: NeedCandidate) -> list[AcquisitionCandidate]:
+        if candidate.acquisitions:
+            return candidate.acquisitions
+        if candidate.source is None:
+            return []
+        return [
+            AcquisitionCandidate(
+                source=candidate.source,
+                capability=candidate.capability,
+                tool_arguments=candidate.tool_arguments,
+                origin=(
+                    "DETERMINISTIC"
+                    if candidate.provenance != "semantic_planner"
+                    else "PLANNER_FALLBACK"
+                ),
+            )
+        ]
+
+    @staticmethod
+    def _acquisition_identity(item: AcquisitionCandidate | AcquisitionPlan) -> tuple:
+        arguments = json.dumps(
+            item.tool_arguments,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        return item.source, item.capability, arguments
+
+    @classmethod
+    def _merge_acquisitions(
+        cls,
+        need: InformationNeed,
+        candidates: list[AcquisitionCandidate],
+        *,
+        semantic_key: str,
+    ) -> int:
+        existing = {cls._acquisition_identity(item) for item in need.acquisitions}
+        added = 0
+        for candidate in candidates:
+            identity = cls._acquisition_identity(candidate)
+            if identity in existing:
+                continue
+            digest = hashlib.sha1(
+                f"{semantic_key}|{identity!r}".encode("utf-8")
+            ).hexdigest()[:12]
+            need.acquisitions.append(
+                AcquisitionPlan(id=f"acq:{digest}", **candidate.model_dump())
+            )
+            existing.add(identity)
+            added += 1
+        need.activate_next_acquisition()
+        return added
 
     def register_many(
         self,
@@ -138,13 +202,21 @@ class NeedManager:
         new_open = new_resolved = dynamic = 0
         dependency_pairs: list[tuple[InformationNeed, NeedCandidate]] = []
         for candidate in candidates:
+            acquisitions = self._candidate_acquisitions(candidate)
+            if not acquisitions:
+                rejected += 1
+                continue
+            if candidate.source is None:
+                candidate.source = acquisitions[0].source
+                candidate.capability = acquisitions[0].capability
+                candidate.tool_arguments = dict(acquisitions[0].tool_arguments)
             entity, aspect, normalized_scope, aspect_provenance = self._normalized_candidate(
                 state, candidate
             )
             if not aspect:
                 rejected += 1
                 continue
-            key = f"{candidate.source}|{entity}|{aspect}|{normalized_scope or '*'}"
+            key = f"{entity}|{aspect}|{normalized_scope or '*'}"
             requirement = self._requirement_fingerprint(state, aspect)
             if requirement:
                 key = f"{key}|requirement:{requirement}"
@@ -159,11 +231,16 @@ class NeedManager:
                 provenance=aspect_provenance,
             )
             dynamic += aspect_provenance == "DYNAMIC"
-            if candidate.source == "TOOL" and (
-                not candidate.capability
-                or self.capabilities
-                and candidate.capability not in self.capabilities
-            ):
+            invalid_tool_acquisition = any(
+                item.source == "TOOL"
+                and (
+                    not item.capability
+                    or self.capabilities
+                    and item.capability not in self.capabilities
+                )
+                for item in acquisitions
+            )
+            if invalid_tool_acquisition:
                 rejected += 1
                 continue
             if aspect == "product_terms" and entity in {
@@ -179,8 +256,20 @@ class NeedManager:
             )
             if existing is not None:
                 dependency_pairs.append((existing, candidate))
+                acquisition_added = self._merge_acquisitions(
+                    existing, acquisitions, semantic_key=key
+                )
                 if existing.status in {"RESOLVED", "NOT_APPLICABLE"}:
-                    satisfied += 1
+                    if acquisition_added:
+                        existing.status = "OPEN"
+                        existing.blocking = existing.critical
+                        existing.actionable = True
+                        existing.resolved_at = None
+                        existing.status_reason = "new_required_acquisition"
+                        existing.activate_next_acquisition()
+                        deduplicated += 1
+                    else:
+                        satisfied += 1
                 else:
                     deduplicated += 1
                     if candidate.capability:
@@ -209,14 +298,18 @@ class NeedManager:
 
             covered_by = []
             partial_refs = []
-            for evidence in reversed(state.evidence):
+            has_policy_acquisition = any(
+                item.source == "POLICY" for item in acquisitions
+            )
+            evidence_items = reversed(state.evidence) if has_policy_acquisition else []
+            for evidence in evidence_items:
                 probe = InformationNeed(
                     id="candidate",
                     semantic_key=key,
                     entity=entity,
                     aspect=aspect,
                     scope=normalized_scope or None,
-                    source=candidate.source,
+                    source="POLICY",
                     reason=candidate.reason_code or "semantic_delta",
                     critical=blocking,
                     blocking=blocking,
@@ -267,11 +360,25 @@ class NeedManager:
                 query_objective=candidate.query_objective,
                 max_attempts=candidate.max_attempts,
             )
+            self._merge_acquisitions(need, acquisitions, semantic_key=key)
             if covered_by:
-                state.resolve_need(need, evidence_refs=covered_by)
-                state.control.needs_resolved_count += 1
+                policy_acquisition = next(
+                    (
+                        item
+                        for item in need.acquisitions
+                        if item.source == "POLICY" and item.status == "OPEN"
+                    ),
+                    None,
+                )
+                if policy_acquisition is not None:
+                    need.active_acquisition_id = policy_acquisition.id
+                    need.source = "POLICY"
+                fully_resolved = state.resolve_need(need, evidence_refs=covered_by)
+                if fully_resolved:
+                    state.control.needs_resolved_count += 1
                 covered += 1
-                new_resolved += 1
+                new_resolved += int(fully_resolved)
+                new_open += int(not fully_resolved)
             else:
                 new_open += 1
             state.upsert_need(need, max_needs=effective_limit)

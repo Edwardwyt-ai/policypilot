@@ -145,12 +145,13 @@ class EvidenceResolver:
                 ),
                 None,
             )
-            state.resolve_need(
+            fully_resolved = state.resolve_need(
                 need,
                 evidence_refs=[evidence.tool_call_id] if evidence.tool_call_id else [],
                 fact_id=fact.id if fact else None,
             )
-            state.control.needs_resolved_count += 1
+            if fully_resolved:
+                state.control.needs_resolved_count += 1
             matched.append(need.id)
 
         trigger = next(

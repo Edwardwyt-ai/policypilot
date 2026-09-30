@@ -172,7 +172,10 @@ class LLMSemanticPlanner:
                 valid_hints.append(hint)
             candidate.dependency_hints = valid_hints
             if candidate.source == "TOOL" and candidate.capability not in self.capabilities:
-                continue
+                # The planner's source is only a hint. Keep the semantic Need so
+                # AcquisitionPlanner can choose among real runtime capabilities.
+                candidate.capability = None
+                candidate.tool_arguments = {}
             valid_needs.append(candidate)
         plan.need_candidates = valid_needs
         for criterion in plan.goal_delta.criteria:

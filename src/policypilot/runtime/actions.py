@@ -240,6 +240,28 @@ def _bind_decision_retrieval(
         ),
         None,
     )
+    if need is None:
+        # Checkpoints and hand-built tests may still carry the v1 key whose
+        # identity included the authority prefix. Match the semantic
+        # proposition structurally while migrating to source-free keys.
+        need = next(
+            (
+                item
+                for item in state.information_needs
+                if item.entity == target
+                and item.aspect == aspect
+                and item.scope == target
+                and not item.query_id
+                and (
+                    item.source == "POLICY"
+                    or any(
+                        acquisition.source == "POLICY"
+                        for acquisition in item.acquisitions
+                    )
+                )
+            ),
+            None,
+        )
 
     binding = "canonical"
     if need is not None and (
@@ -299,6 +321,20 @@ def _bind_decision_retrieval(
     need.status_reason = "decision_identified_evidence_gap"
     need.query_terms = list(dict.fromkeys([*need.query_terms, query]))[-4:]
     need.updated_turn = len(state.messages)
+    policy_acquisition = next(
+        (
+            item
+            for item in need.acquisitions
+            if item.source == "POLICY"
+        ),
+        None,
+    )
+    if policy_acquisition is not None:
+        policy_acquisition.status = "REQUESTED"
+        policy_acquisition.status_reason = "decision_identified_evidence_gap"
+        policy_acquisition.attempts += 1
+        need.active_acquisition_id = policy_acquisition.id
+        need.source = "POLICY"
     need.retrieval_attempts += 1
     need.acquisition_count += 1
     state.control.retrieval_events.append(

@@ -88,7 +88,7 @@ def _search_terms(value: str) -> set[str]:
     }
 
 
-def _compact_policy_search(content: str, query: str, limit: int = 3600) -> str:
+def compact_policy_search(content: str, query: str, limit: int = 3600) -> str:
     """Keep short evidence from every ranked document, not only rank one."""
     documents = list(_POLICY_DOCUMENT.finditer(content))
     if not documents:
@@ -211,7 +211,7 @@ def make_tool_evidence(
     if is_retrieval and not refs and content and "No relevant documents found" in content:
         summary = "Retrieval returned no relevant documents."
     elif is_retrieval:
-        summary = _compact_policy_search(
+        summary = compact_policy_search(
             content or "",
             str(tool_args.get("query", "")),
         )
@@ -237,7 +237,15 @@ def make_tool_evidence(
         error=error,
         policy_refs=refs,
         metadata=(
-            {}
+            {
+                "context_ref": {
+                    "raw_chars": len(content or ""),
+                    "summary_chars": len(summary),
+                    "lossy": len(content or "") > len(summary),
+                    "document_ids": [item.document_id for item in refs],
+                },
+                "source_ref": payload_ref,
+            }
             if is_retrieval
             else {
                 "projection": {
@@ -245,6 +253,11 @@ def make_tool_evidence(
                     "total_fields": projection.total_fields,
                     "range_selected": projection.range_selected,
                     "aggregation": projection.aggregation,
+                },
+                "context_ref": {
+                    "raw_chars": len(content or ""),
+                    "summary_chars": len(summary),
+                    "lossy": len(content or "") > len(summary),
                 },
                 "source_ref": payload_ref,
             }

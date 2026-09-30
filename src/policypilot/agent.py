@@ -7,6 +7,7 @@ from typing import Optional
 
 from langgraph.errors import GraphRecursionError
 
+from policypilot.acquisition import AcquisitionPlanner, build_laya_backend
 from policypilot.checkpoint import JsonCheckpointStore
 from policypilot.compression import ToolContextCompressor
 from policypilot.config import PolicyPilotConfig
@@ -102,6 +103,7 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
         memory_extractor: PreferenceExtractor | None = None,
         task_id: str | None = None,
         llm_runtime: LLMRuntime | None = None,
+        acquisition_planner: AcquisitionPlanner | None = None,
     ):
         tools = sorted(tools, key=lambda tool: tool.name)
         super().__init__(
@@ -128,6 +130,27 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
         }
         self.semantic_planner = LLMSemanticPlanner(
             self.llm_runtime, read_capability_names
+        )
+        laya_env = os.getenv("POLICYPILOT_LAYA_ENABLED")
+        laya_enabled = self.config.laya_acquisition_enabled
+        if laya_env is not None:
+            laya_enabled = laya_env.strip().lower() not in {"0", "false", "no", "off"}
+        laya_backend = (
+            build_laya_backend(
+                model=self.config.laya_model,
+                device=self.config.laya_device,
+                cache_dir=self.config.laya_cache_dir,
+            )
+            if laya_enabled
+            else None
+        )
+        self.acquisition_planner = acquisition_planner or AcquisitionPlanner(
+            tools,
+            laya_backend,
+            plan_threshold=self.config.laya_plan_threshold,
+            tool_threshold=self.config.laya_tool_threshold,
+            max_candidates=self.config.laya_max_candidates,
+            max_tool_options=self.config.laya_max_tool_options,
         )
         self.evidence_resolver = EvidenceResolver()
         self.need_registry = NeedRegistry(
@@ -406,4 +429,5 @@ def create_policypilot_agent(tools, domain_policy, **kwargs) -> PolicyPilotAgent
         memory_extractor=kwargs.get("memory_extractor"),
         task_id=getattr(kwargs.get("task"), "id", None),
         llm_runtime=kwargs.get("llm_runtime"),
+        acquisition_planner=kwargs.get("acquisition_planner"),
     )
