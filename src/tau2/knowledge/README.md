@@ -32,6 +32,7 @@ Requirements: **sandbox-runtime** for `shell`, and an embedding API for dense se
 | `bm25` | `KB_search` | None (offline) |
 | `openai_embeddings` | `KB_search` | `OPENAI_API_KEY` |
 | `qwen_embeddings` | `KB_search` | `OPENROUTER_API_KEY` |
+| `local_hybrid` | `KB_search` | Local Ollama embedding/reranker models + migrated Qdrant collection |
 | `terminal_use` | `shell` | `sandbox-runtime` (see below) |
 | `terminal_use_write` | `shell` | `sandbox-runtime` (see below) |
 | `alltools` | `KB_search_bm25`, `KB_search_dense`, `shell` | BM25 offline + OpenAI dense embeddings + sandbox-runtime |
@@ -43,6 +44,23 @@ The `bm25`, `openai_embeddings`, and `qwen_embeddings` configs can also be combi
 - Both (e.g. `openai_embeddings_reranker_grep`)
 
 Note: `*_reranker` variants always require `OPENAI_API_KEY` for the pointwise LLM reranker, even when the base embedder uses a different provider (e.g. `qwen_embeddings_reranker` needs both `OPENROUTER_API_KEY` and `OPENAI_API_KEY`).
+
+## Local Hybrid Qdrant Index
+
+`local_hybrid` combines BM25, local Qwen embeddings, Qdrant dense search, and a
+local reranker behind the existing `KB_search` tool contract. Build the NumPy
+source index first, then migrate it once:
+
+```bash
+python scripts/migrate_policy_vectors_to_qdrant.py
+```
+
+The default embedded Qdrant database is stored at
+`data/tau2/domains/banking_knowledge/vector_index/qdrant`. Override it with
+`POLICYPILOT_QDRANT_PATH`. To use Qdrant Server or Cloud instead, set
+`POLICYPILOT_QDRANT_URL` and, when required, `POLICYPILOT_QDRANT_API_KEY`.
+`POLICYPILOT_QDRANT_COLLECTION` selects the collection. Set the local-hybrid
+retrieval spec's `dense_backend` to `numpy` only as a temporary rollback path.
 
 ## Embedding Cache
 

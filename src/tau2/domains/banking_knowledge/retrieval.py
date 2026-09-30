@@ -14,6 +14,7 @@ Replaces the 18 ``RetrievalConfig`` subclasses in
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -336,6 +337,7 @@ class LocalHybridSpec:
     rerank_candidate_k: int = 20
     model_rerank_weight: float = 0.35
     reranker_model_path: Optional[str] = None
+    dense_backend: Literal["qdrant", "numpy"] = "qdrant"
 
 
 # ---------------------------------------------------------------------------
@@ -785,6 +787,10 @@ def build_tools(
             LocalHybridPolicyRetriever,
         )
         from tau2.domains.banking_knowledge.local_reranker import QwenLocalReranker
+        from tau2.domains.banking_knowledge.qdrant_index import (
+            DEFAULT_COLLECTION,
+            QdrantDenseIndex,
+        )
 
         spec = variant.local_hybrid
         reranker_path = Path(
@@ -808,14 +814,41 @@ def build_tools(
             / "banking_knowledge"
             / "vector_index"
         )
+        index_dir = vector_root / "qwen3-embedding-0.6b"
+        dense_index = None
+        if spec.dense_backend == "qdrant":
+            index_manifest = json.loads(
+                (index_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            qdrant_url = os.environ.get("POLICYPILOT_QDRANT_URL")
+            qdrant_path = Path(
+                os.environ.get(
+                    "POLICYPILOT_QDRANT_PATH", str(vector_root / "qdrant")
+                )
+            )
+            if not qdrant_path.is_absolute():
+                qdrant_path = DATA_DIR.parent / qdrant_path
+            dense_index = QdrantDenseIndex(
+                collection=os.environ.get(
+                    "POLICYPILOT_QDRANT_COLLECTION", DEFAULT_COLLECTION
+                ),
+                row_count=int(index_manifest["row_count"]),
+                dimensions=int(index_manifest["dimensions"]),
+                model=spec.model,
+                chunks_sha256=str(index_manifest["chunks_sha256"]),
+                path=None if qdrant_url else qdrant_path,
+                url=qdrant_url,
+                api_key=os.environ.get("POLICYPILOT_QDRANT_API_KEY"),
+            )
         retriever = LocalHybridPolicyRetriever(
             chunks_path=vector_root / "chunks.jsonl",
-            index_dir=vector_root / "qwen3-embedding-0.6b",
+            index_dir=index_dir,
             endpoint=spec.endpoint,
             model=spec.model,
             candidate_k=spec.candidate_k,
             top_k=spec.top_k,
             chunks_per_document=spec.chunks_per_document,
+            dense_index=dense_index,
             reranker=QwenLocalReranker(reranker_path),
             rerank_candidate_k=spec.rerank_candidate_k,
             model_rerank_weight=spec.model_rerank_weight,

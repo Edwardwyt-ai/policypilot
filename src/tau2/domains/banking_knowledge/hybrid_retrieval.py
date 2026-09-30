@@ -7,6 +7,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -127,6 +128,14 @@ class _ChunkScore:
     model_score: float | None = None
 
 
+class DenseIndex(Protocol):
+    """Minimal dense backend contract used by the hybrid retriever."""
+
+    def search(
+        self, query_vector: np.ndarray, limit: int
+    ) -> tuple[np.ndarray, list[int]]: ...
+
+
 class LocalHybridPolicyRetriever:
     """Search a prebuilt chunk index with sparse+dense retrieval and reranking."""
 
@@ -141,6 +150,7 @@ class LocalHybridPolicyRetriever:
         top_k: int = 5,
         chunks_per_document: int = 2,
         embedding_client: OllamaEmbeddingClient | None = None,
+        dense_index: DenseIndex | None = None,
         reranker: PassageReranker | None = None,
         rerank_candidate_k: int = 20,
         model_rerank_weight: float = 0.35,
@@ -157,6 +167,7 @@ class LocalHybridPolicyRetriever:
             endpoint=endpoint,
             model=model,
         )
+        self.dense_index = dense_index
         self.reranker = reranker
         self.rerank_candidate_k = rerank_candidate_k
         if not 0.0 <= model_rerank_weight <= 1.0:
@@ -164,14 +175,17 @@ class LocalHybridPolicyRetriever:
         self.model_rerank_weight = model_rerank_weight
 
         self.chunks = load_chunks(chunks_path)
-        self.embeddings = np.load(index_dir / "embeddings.npy", mmap_mode="r")
-        self.metadata = [
-            json.loads(line)
-            for line in (index_dir / "chunk_metadata.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
-        self._validate_index(model)
+        self.embeddings: np.ndarray | None = None
+        self.metadata: list[dict] = []
+        if self.dense_index is None:
+            self.embeddings = np.load(index_dir / "embeddings.npy", mmap_mode="r")
+            self.metadata = [
+                json.loads(line)
+                for line in (index_dir / "chunk_metadata.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            self._validate_index(model)
         corpus = [tokenize(self._searchable_text(chunk)) for chunk in self.chunks]
         self.bm25 = BM25Okapi(corpus)
 
@@ -181,6 +195,8 @@ class LocalHybridPolicyRetriever:
         return f"{chunk.title}\n{sections}\n{chunk.text}"
 
     def _validate_index(self, model: str) -> None:
+        if self.embeddings is None:
+            raise ValueError("NumPy index is not loaded")
         manifest = json.loads(
             (self.index_dir / "manifest.json").read_text(encoding="utf-8")
         )
@@ -379,8 +395,16 @@ class LocalHybridPolicyRetriever:
         norm = np.linalg.norm(query_vector)
         if norm == 0:
             raise ValueError("Query embedding has zero norm")
-        dense_scores = self.embeddings @ (query_vector / norm)
-        dense_rows = self._top_rows(dense_scores, self.candidate_k)
+        normalized_query = query_vector / norm
+        if self.dense_index is not None:
+            dense_scores, dense_rows = self.dense_index.search(
+                normalized_query, self.candidate_k
+            )
+        else:
+            if self.embeddings is None:
+                raise RuntimeError("No dense retrieval backend is configured")
+            dense_scores = self.embeddings @ normalized_query
+            dense_rows = self._top_rows(dense_scores, self.candidate_k)
         dense_ms = (time.perf_counter() - dense_start) * 1000
 
         feature_rerank_start = time.perf_counter()
