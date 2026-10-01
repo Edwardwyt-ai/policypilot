@@ -1,6 +1,6 @@
 # AGENTS.md — src/tau2/domains/
 
-> See `README.md` for full architecture and data storage details.
+> See `src/tau2/knowledge/README.md` for the retained banking retrieval stack.
 
 ## Rules for Working in This Directory
 

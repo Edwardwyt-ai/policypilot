@@ -1,15 +1,17 @@
 # AGENTS.md
 
-> Instructions for AI coding agents working on the τ-bench codebase.
+> Instructions for AI coding agents working on the PolicyPilot codebase.
 
 ## Project Overview
 
-τ-bench is a simulation framework for evaluating conversational customer service agents. It supports text and voice interactions in half-duplex (turn-based) and full-duplex (simultaneous/streaming) communication modes. Domains include `mock`, `airline`, `retail`, `telecom`, and `banking_knowledge`.
+PolicyPilot is a banking-policy agent built on the retained tau2 simulation runtime.
+`banking_knowledge` is the product domain; `mock` is kept only as a lightweight
+framework test fixture.
 
 ## Setup
 
 ```bash
-uv sync                        # core only (airline, retail, telecom, mock)
+uv sync                        # core runtime and mock test fixture
 uv sync --extra voice          # + voice/audio-native features
 uv sync --extra knowledge      # + banking_knowledge domain (retrieval pipeline)
 uv sync --extra gym            # + gymnasium RL interface
@@ -49,13 +51,7 @@ Required keys depend on the task:
 ## Running Evaluations
 
 ```bash
-# Text half-duplex (standard)
-tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-trials 1 --num-tasks 5
-
-# Voice full-duplex (audio native)
-tau2 run --domain retail --audio-native --num-tasks 1 --verbose-logs
-
-# Knowledge domain (requires --retrieval-config)
+# PolicyPilot banking evaluation (requires --retrieval-config)
 tau2 run --domain banking_knowledge --retrieval-config qwen_embeddings --agent-llm gpt-4.1 --user-llm gpt-4.1 --num-tasks 5
 ```
 
@@ -70,7 +66,7 @@ src/tau2/
 ├── config.py        # Central configuration (single source of truth for defaults)
 ├── cli.py           # CLI entry point (tau2 command)
 ├── data_model/      # Pydantic data models (messages, trajectories, etc.)
-├── domains/         # Domain definitions (airline, mock, retail, telecom, banking_knowledge)
+├── domains/         # banking_knowledge product domain and mock test fixture
 ├── environment/     # Environment, DB, server, toolkit base classes
 ├── evaluator/       # Task evaluation logic
 ├── gym/             # Gymnasium-compatible RL interface
@@ -189,7 +185,7 @@ Ruff rules: `E4`, `E7`, `E9`, `F`, `I` (with `E501` and `F541` ignored).
 feat: add memory system to agent base class
 fix: resolve environment tool timeout issues
 docs: update domain contribution guidelines
-test: add integration tests for retail domain
+test: add banking policy retrieval integration tests
 ```
 
 ## Things to Watch Out For

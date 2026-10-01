@@ -21,6 +21,101 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Repository Directory Organization V1
+
+- Date: 2026-10-01
+- Status: implemented and regression-verified
+- Parent: Unreleased - Retrieval Failure Semantics V1
+
+### Scope
+
+- Removed the legacy tau2 `airline`, `retail`, and `telecom` domain source,
+  datasets, workflow media, and domain-specific tests.
+- Removed the legacy domain README, the obsolete three-domain per-task summary
+  script, and the legacy hyperparameter experiment package that imported
+  Telecom internals.
+- Replaced the root tau2-oriented README with a PolicyPilot-focused project
+  README and updated contributor/test documentation and CLI examples.
+- Kept the generic tau2 orchestrator, environment, evaluator, voice/gym
+  framework code, and the `mock` domain used by framework unit tests.
+- The runtime registry now exposes only `banking_knowledge` and `mock` as
+  domains and task sets.
+
+### Repository Impact
+
+- Deleted 78 tracked files totaling 137,661,596 bytes (131.28 MiB) from the
+  current Git baseline.
+- No PolicyPilot state schema, decision behavior, evaluator semantics, hidden
+  criteria, or banking task data changed as part of this cleanup.
+
+### Verification Evidence
+
+- Registry import confirmed domains/task sets: `mock`, `banking_knowledge`.
+- PolicyPilot + banking knowledge + mock suite: `653 passed, 86 skipped`.
+- Generic core suite: `253 passed, 1 skipped, 1 xfailed`; 17 tests attempted
+  unconfigured live OpenAI calls and failed authentication. No deleted-domain
+  import or registration failure occurred.
+- No benchmark task was run because this change only removes unregistered
+  legacy domains and repository documentation/assets.
+
+## Unreleased - Retrieval Failure Semantics V1
+
+- Date: 2026-09-30
+- Status: implemented, full-unit-verified, and post-fix task-smoke-evaluated
+- Parent: Unreleased - Final Response Judge V1
+
+### Architecture And Behavior
+
+- Added `infrastructure_failure` as a distinct error category for knowledge-tool
+  execution failures. A failed transport or embedding call is no longer treated
+  as a successful retrieval with missing policy coverage.
+- Retrieval events now have a pending phase. They enter the durable trajectory
+  only after Guard validation succeeds and the tool call is actually emitted,
+  eliminating events for blocked calls that never reached the environment.
+- Per-Need retrieval attempts are committed only after a knowledge lookup
+  executes successfully. Successful empty results still consume an attempt;
+  execution failures do not update Coverage or exhaust the business Need.
+- Infrastructure failures reopen the active acquisition, preserve the existing
+  Need, release the failed query signature for recovery, and do not consume the
+  Goal-level successful-retrieval budget.
+- Infrastructure-only observations are excluded from business no-progress
+  accounting. Actual tool calls and structured errors remain recorded, and the
+  existing consecutive-error budget still bounds persistent outages.
+
+### Failure Evidence
+
+- Pre-fix `task_001` with Laya disabled produced Reward `0.0`, DB Check `0.0`,
+  Required Action `0.0`, three `KB_search` calls, 14 messages, 47.41 seconds,
+  and total reported cost `$0.003322`.
+- All three retrievals failed with `Embedding request failed after 3 attempts`
+  because `127.0.0.1:11434` was unavailable. The old lifecycle incorrectly
+  exhausted policy Needs and recorded five retrieval events for three emitted
+  calls.
+- Artifact:
+  `data/simulations/diagnostic_task001_no_laya_seed0_20260930/tasks/task_001/results.json`.
+
+### Verification Evidence
+
+- Added a regression that reproduces the embedding failure, verifies zero Need
+  attempt consumption, confirms explicit infrastructure-failure telemetry, and
+  proves the same query can run after recovery.
+- Focused Guard, Need, and architecture regression: `58 passed`.
+- Full PolicyPilot regression: `148 passed, 1 skipped`.
+- Ruff passed for PolicyPilot source, tests, and scripts.
+- Post-fix `task_001`, with Laya disabled and seed 0, produced Reward `0.0`, DB
+  Check `0.0`, Required Action `0.0`, seven actual tool calls, and seven durable
+  retrieval events. The run used 63,652 traced input tokens and 9,226 output
+  tokens, cost `$0.099216`, took 127.65 seconds, and ended with `user_stop`.
+- The first retrieval failed with Windows `os error 1455` and was correctly
+  recorded as an uncommitted `INFRA_FAILURE`; the same query then succeeded.
+  This verified the repaired failure lifecycle in a real trajectory.
+- The remaining task failure is retrieval-planning related: evidence for Bronze,
+  Silver, Platinum, and Diamond prematurely closed comparative coverage without
+  retrieving the Gold Rewards Card terms. Repeated anchored lookups exhausted
+  the Goal retrieval budget before the later no-fee correction could run.
+- Post-fix artifact:
+  `data/simulations/diagnostic_task001_no_laya_infra_fix_20260930/tasks/task_001/results.json`.
+
 ## Unreleased - Final Response Judge V1
 
 - Date: 2026-09-27

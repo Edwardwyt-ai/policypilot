@@ -496,15 +496,10 @@ def run_intro():
     domain_table.add_column("Domain", style="bold", no_wrap=True)
     domain_table.add_column("Description")
     domain_table.add_row(
-        "airline", "Flight booking, cancellation, and customer support"
-    )
-    domain_table.add_row("retail", "Order management, returns, and product inquiries")
-    domain_table.add_row("telecom", "Telecom account management and troubleshooting")
-    domain_table.add_row(
         "banking_knowledge",
-        "Knowledge-retrieval-based customer service with configurable RAG pipelines",
+        "PolicyPilot banking evaluation with configurable retrieval pipelines",
     )
-    domain_table.add_row("mock", "Lightweight test domain for development")
+    domain_table.add_row("mock", "Internal lightweight test fixture")
     console.print(domain_table)
     console.print()
 
@@ -548,16 +543,14 @@ def run_intro():
         "tau2 check-data\n"
         "\n"
         "# 2. Run a text (half-duplex) evaluation\n"
-        "tau2 run --domain airline --agent-llm gpt-4.1 --user-llm gpt-4.1 "
+        "tau2 run --domain banking_knowledge --agent-llm deepseek/deepseek-chat "
+        "--user-llm deepseek/deepseek-chat "
         "--num-trials 1 --num-tasks 5\n"
         "\n"
-        "# 3. Run a voice (full-duplex) evaluation\n"
-        "tau2 run --domain retail --audio-native --num-tasks 1 --verbose-logs\n"
-        "\n"
-        "# 4. Browse results\n"
+        "# 3. Browse results\n"
         "tau2 view\n"
         "\n"
-        "# 5. Check the leaderboard\n"
+        "# 4. Check the leaderboard\n"
         "tau2 leaderboard"
     )
     console.print(
@@ -724,7 +717,7 @@ def main():
     domain_parser.add_argument(
         "domain",
         type=str,
-        help="Name of the domain to show documentation for (e.g., 'airline', 'mock')",
+        help="Name of the domain to show documentation for (e.g., 'banking_knowledge')",
     )
     domain_parser.set_defaults(func=lambda args: run_show_domain(args))
 
@@ -839,7 +832,7 @@ def main():
         "--domain",
         "-d",
         type=str,
-        choices=["retail", "airline", "telecom", "banking_knowledge"],
+        choices=["banking_knowledge"],
         default=None,
         help="Show leaderboard for a specific domain. If not specified, shows overall leaderboard.",
     )
