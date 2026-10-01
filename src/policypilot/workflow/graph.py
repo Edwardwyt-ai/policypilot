@@ -327,6 +327,9 @@ class PolicyPilotWorkflow:
         )
         error, _ = self.host._proposal_error(message, state)
         if error:
+            state.control.pending_retrieval_events.pop(
+                message.tool_calls[0].id, None
+            )
             return self.trace(
                 gs,
                 "retrieve_policy",

@@ -6,7 +6,7 @@ from policypilot.runtime.actions import (
 )
 from policypilot.runtime.recovery import recover_validation_failure
 from policypilot.state import FactRecord, InformationNeed
-from tau2.data_model.message import AssistantMessage, ToolCall, UserMessage
+from tau2.data_model.message import AssistantMessage, ToolCall, ToolMessage, UserMessage
 
 
 def tool_message(name: str, arguments: dict, call_id: str = "call-1"):
@@ -127,7 +127,7 @@ def test_decision_retrieval_reopens_and_binds_resolved_need(agent_factory):
     assert need.status == "REOPENED"
     assert need.blocking
     assert need.coverage == "PARTIAL"
-    assert need.retrieval_attempts == 2
+    assert need.retrieval_attempts == 1
     assert state.control.retrieval_events[-1]["origin"] == "decision"
     assert state.control.retrieval_events[-1]["need_id"] == need.id
     assert state.tool_history[-1].need_id == need.id
@@ -172,7 +172,7 @@ def test_decision_retrieval_uses_query_scoped_need_after_canonical_limit(
         item for item in state.information_needs if item.id == event["need_id"]
     )
     assert scoped.status == "OPEN"
-    assert scoped.retrieval_attempts == 1
+    assert scoped.retrieval_attempts == 0
     assert state.tool_history[-1].need_id == scoped.id
 
 
@@ -227,6 +227,7 @@ def test_decision_retrieval_executes_one_query_per_turn(agent_factory):
     )
 
     result = validate_proposal(agent, proposal, state)
+    agent._record_valid_tool_calls(proposal, state)
 
     assert result.allowed
     assert [call.id for call in proposal.tool_calls] == ["decision-kb-1"]
@@ -258,6 +259,89 @@ def test_policy_need_uses_formal_retrieval_node(agent_factory):
     assert action.tool_calls[0].name == "KB_search"
     assert state.control.retrieval_events[-1]["need_id"] == need.id
     assert state.tool_history[-1].need_id == need.id
+
+
+def test_retrieval_infrastructure_failure_does_not_consume_need_budget(
+    agent_factory,
+):
+    agent = agent_factory(
+        config=PolicyPilotConfig(
+            memory_enabled=False,
+            skills_enabled=False,
+            semantic_planner_enabled=False,
+        )
+    )
+    state = agent.get_init_state()
+    state.control.no_progress_count = 1
+    need = InformationNeed(
+        id="policy-card-rewards",
+        entity="card",
+        aspect="rewards",
+        scope="card",
+        source="POLICY",
+        reason="decision_blocking",
+        critical=True,
+        blocking=True,
+    )
+    state.information_needs.append(need)
+
+    first = agent.workflow.retrieve_policy(
+        {"policy_state": state, "active_need": need, "node_trace": []}
+    )["final_action"]
+    first_call = first.tool_calls[0]
+    state.messages.append(first)
+
+    assert need.retrieval_attempts == 0
+    assert len(state.control.retrieval_events) == 1
+    assert not state.control.pending_retrieval_events
+
+    outcomes = agent._observe(
+        ToolMessage(
+            role="tool",
+            id=first_call.id,
+            requestor="assistant",
+            content="Error: Embedding request failed after 3 attempts",
+            error=True,
+        ),
+        state,
+    )
+
+    assert outcomes[0].infrastructure_failure
+    assert need.retrieval_attempts == 0
+    assert need.status == "OPEN"
+    assert not need.exhausted
+    assert state.control.no_progress_count == 1
+    assert state.control.goal_retrieval_call_count == 0
+    assert state.control.retrieval_events[0]["status"] == "INFRA_FAILURE"
+    assert not state.control.retrieval_events[0]["attempt_committed"]
+    assert (
+        state.control.error_records[-1].category.value
+        == "infrastructure_failure"
+    )
+
+    second = agent.workflow.retrieve_policy(
+        {"policy_state": state, "active_need": need, "node_trace": []}
+    )["final_action"]
+    second_call = second.tool_calls[0]
+    state.messages.append(second)
+
+    assert second_call.id != first_call.id
+    assert len(state.control.retrieval_events) == 2
+    assert need.retrieval_attempts == 0
+
+    agent._observe(
+        ToolMessage(
+            role="tool",
+            id=second_call.id,
+            requestor="assistant",
+            content="No relevant documents found",
+        ),
+        state,
+    )
+
+    assert need.retrieval_attempts == 1
+    assert state.control.retrieval_events[-1]["status"] == "EMPTY"
+    assert state.control.retrieval_events[-1]["attempt_committed"]
 
 
 def test_guard_missing_argument_creates_need_through_manager(agent_factory):

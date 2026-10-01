@@ -332,13 +332,9 @@ def _bind_decision_retrieval(
     if policy_acquisition is not None:
         policy_acquisition.status = "REQUESTED"
         policy_acquisition.status_reason = "decision_identified_evidence_gap"
-        policy_acquisition.attempts += 1
         need.active_acquisition_id = policy_acquisition.id
         need.source = "POLICY"
-    need.retrieval_attempts += 1
-    need.acquisition_count += 1
-    state.control.retrieval_events.append(
-        {
+    state.control.pending_retrieval_events[call.id] = {
             "turn": len(state.messages),
             "tool_call_id": call.id,
             "need_id": need.id,
@@ -349,7 +345,8 @@ def _bind_decision_retrieval(
             "scope": need.scope,
             "source": "POLICY",
             "status": "REQUESTED",
-            "attempt": need.retrieval_attempts,
+            "attempt": need.retrieval_attempts + 1,
+            "attempt_committed": False,
             "query": query,
             "candidate_documents": [],
             "coverage": None,
@@ -359,10 +356,6 @@ def _bind_decision_retrieval(
             "origin": "decision",
             "binding": binding,
         }
-    )
-    state.control.retrieval_query_history.append(
-        {"turn": len(state.messages), "need_id": need.id, "query": query}
-    )
     return need.id
 
 
@@ -447,10 +440,16 @@ def validate_proposal(
                 details=error,
                 proposed_action={**proposed_action, "missing_fields": missing},
             )
+    direct_retrievals: list[ToolCall] = []
     for call in message.tool_calls:
-        if is_knowledge_tool(call.name) and not any(
-            item.get("tool_call_id") == call.id and item.get("status") == "REQUESTED"
-            for item in state.control.retrieval_events
+        if (
+            is_knowledge_tool(call.name)
+            and call.id not in state.control.pending_retrieval_events
+            and not any(
+                item.get("tool_call_id") == call.id
+                and item.get("status") == "REQUESTED"
+                for item in state.control.retrieval_events
+            )
         ):
             direct_allowed = host.config.decision_knowledge_tools_enabled and (
                 is_decision_retrieval_tool(call.name)
@@ -474,10 +473,7 @@ def validate_proposal(
                     details="Repeated Decision knowledge query blocked.",
                     proposed_action=proposed_action,
                 )
-            # Binding is provenance and budgeting metadata, not permission for
-            # a read-only lookup. A full Need registry must not become a safety
-            # denial for an otherwise valid Decision query.
-            _bind_decision_retrieval(host, call, state)
+            direct_retrievals.append(call)
         classification = host.guard.classify(call.name)
         signature = tool_signature(call.name, call.arguments)
         if classification == "mutation":
@@ -556,6 +552,10 @@ def validate_proposal(
                 details="Mutation blocked pending read verification.",
                 proposed_action=proposed_action,
             )
+    # Bind Decision-authored retrieval only after every guard check succeeds.
+    # Formal retrieval nodes already staged their binding before validation.
+    for call in direct_retrievals:
+        _bind_decision_retrieval(host, call, state)
     return ValidationResult(allowed=True, proposed_action=proposed_action)
 
 
@@ -577,7 +577,7 @@ def record_valid_tool_calls(
     for call in message.tool_calls or []:
         bound_need_id = need_id
         if bound_need_id is None and is_knowledge_tool(call.name):
-            event = next(
+            event = control.pending_retrieval_events.get(call.id) or next(
                 (
                     item
                     for item in reversed(control.retrieval_events)
@@ -611,6 +611,25 @@ def record_valid_tool_calls(
         )
         if bound_need is not None and not is_knowledge_tool(call.name):
             bound_need.acquisition_count += 1
+        if is_knowledge_tool(call.name):
+            event = control.pending_retrieval_events.pop(call.id, None)
+            if event is not None:
+                control.retrieval_events.append(event)
+                control.retrieval_query_history.append(
+                    {
+                        "turn": event["turn"],
+                        "tool_call_id": call.id,
+                        "need_id": event["need_id"],
+                        "query": event["query"],
+                    }
+                )
+                if bound_need is not None:
+                    bound_need.acquisition_count += 1
+                    if event.get("origin") == "decision":
+                        active = bound_need.activate_next_acquisition()
+                        if active is not None:
+                            active.status = "REQUESTED"
+                            active.attempts += 1
         control.acquisition_events.append(
             {
                 "turn": len(state.messages),

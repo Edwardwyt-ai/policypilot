@@ -12,6 +12,7 @@ class PolicyPilotErrorType(str, Enum):
     MALFORMED_TOOL_CALL = "malformed_tool_call"
     TOOL_VALIDATION_ERROR = "tool_validation_error"
     TOOL_EXECUTION_ERROR = "tool_execution_error"
+    INFRASTRUCTURE_FAILURE = "infrastructure_failure"
     RETRIEVAL_MISS = "retrieval_miss"
     DUPLICATE_TOOL_CALL = "duplicate_tool_call"
     MAX_STEP_EXHAUSTION = "max_step_exhaustion"

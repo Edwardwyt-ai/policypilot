@@ -23,7 +23,7 @@ from policypilot.state_updates import (
     update_facts_from_tool_evidence,
     update_facts_from_user_message,
 )
-from policypilot.tool_policy import is_knowledge_tool
+from policypilot.tool_policy import is_knowledge_tool, tool_signature
 from tau2.data_model.message import (
     AssistantMessage,
     Message,
@@ -41,6 +41,29 @@ class ObservationOutcome:
     failed: bool = False
     retrieval_empty: bool = False
     mutation_uncertain: bool = False
+    infrastructure_failure: bool = False
+
+
+def _record_observation_progress(
+    state: PolicyPilotState,
+    before: tuple[Any, ...],
+    *,
+    turn: int,
+    outcomes: list[ObservationOutcome],
+) -> None:
+    """Do not turn transport outages into business-level no-progress."""
+
+    if outcomes and all(item.infrastructure_failure for item in outcomes):
+        state.control.progress_events.append(
+            {
+                "turn": turn,
+                "progressed": False,
+                "ignored_reason": "infrastructure_failure",
+                "no_progress_count": state.control.no_progress_count,
+            }
+        )
+        return
+    state.record_progress(before, turn=turn)
 
 
 class ObservationHost(Protocol):
@@ -136,7 +159,12 @@ def observe(
         for item in message.tool_messages:
             state.messages.append(item)
             outcomes.append(observe_tool_message(host, item, state))
-        state.record_progress(progress_before, turn=len(state.messages))
+        _record_observation_progress(
+            state,
+            progress_before,
+            turn=len(state.messages),
+            outcomes=outcomes,
+        )
         return outcomes
     state.messages.append(message)
     if isinstance(message, UserMessage):
@@ -245,7 +273,12 @@ def observe(
         return []
     if isinstance(message, ToolMessage):
         outcome = observe_tool_message(host, message, state)
-        state.record_progress(progress_before, turn=len(state.messages))
+        _record_observation_progress(
+            state,
+            progress_before,
+            turn=len(state.messages),
+            outcomes=[outcome],
+        )
         return [outcome]
     state.record_progress(progress_before, turn=len(state.messages))
     return []
@@ -269,6 +302,7 @@ def observe_tool_message(
     )
     empty = retrieval and "no relevant documents found" in content.lower()
     failed = bool(message.error)
+    infrastructure_failure = retrieval and failed
     uncertain = failed and classification == "mutation"
     mutation_record = next(
         (
@@ -298,6 +332,33 @@ def observe_tool_message(
     )
     state.evidence.append(evidence)
     update_tool_record(message.id, evidence.summary, failed, state)
+    need_id = next(
+        (
+            record.need_id
+            for record in reversed(state.tool_history)
+            if record.tool_call_id == message.id
+        ),
+        None,
+    )
+    need = next(
+        (item for item in state.information_needs if item.id == need_id),
+        None,
+    )
+    retrieval_event = next(
+        (
+            item
+            for item in reversed(state.control.retrieval_events)
+            if item.get("tool_call_id") == message.id
+        ),
+        None,
+    )
+    if retrieval and not failed and need is not None:
+        need.retrieval_attempts += 1
+        if retrieval_event is not None:
+            retrieval_event["attempt"] = need.retrieval_attempts
+            retrieval_event["attempt_committed"] = True
+            if empty:
+                retrieval_event["status"] = "EMPTY"
     acquisition = next(
         (
             item
@@ -336,9 +397,39 @@ def observe_tool_message(
             ensure_mutation_verification_need(
                 host, name, args, state, runtime_metadata.invalidates
             )
+        if infrastructure_failure:
+            if retrieval_event is not None:
+                retrieval_event.update(
+                    {
+                        "status": "INFRA_FAILURE",
+                        "attempt_committed": False,
+                        "error_category": "infrastructure_failure",
+                        "error": evidence.summary[:500],
+                    }
+                )
+            state.control.signature_versions.pop(tool_signature(name, args), None)
+            state.control.goal_retrieval_call_count = max(
+                0, state.control.goal_retrieval_call_count - 1
+            )
+            state.control.retrieval_query_history = [
+                item
+                for item in state.control.retrieval_query_history
+                if item.get("tool_call_id") != message.id
+            ]
+            if need is not None:
+                active = need.activate_next_acquisition()
+                if active is not None:
+                    active.status = "OPEN"
+                    active.status_reason = "infrastructure_failure"
+                need.status = "REOPENED" if need.evidence_refs else "OPEN"
+                need.exhausted = False
+                need.actionable = True
+                need.status_reason = "infrastructure_failure"
         category = (
             PolicyPilotErrorType.RETRIEVAL_EMPTY
             if empty
+            else PolicyPilotErrorType.INFRASTRUCTURE_FAILURE
+            if infrastructure_failure
             else PolicyPilotErrorType.MUTATION_UNCERTAIN
             if uncertain
             else PolicyPilotErrorType.TOOL_EXECUTION_ERROR
@@ -366,18 +457,7 @@ def observe_tool_message(
                 resource_tags=runtime_metadata.resource_tags,
             )
         bind_memory_from_state(host, state)
-        need_id = next(
-            (
-                record.need_id
-                for record in reversed(state.tool_history)
-                if record.tool_call_id == message.id
-            ),
-            None,
-        )
         if need_id:
-            need = next(
-                (item for item in state.information_needs if item.id == need_id), None
-            )
             if need:
                 need.evidence_refs.append(message.id)
                 if retrieval:
@@ -389,8 +469,6 @@ def observe_tool_message(
                             item
                             for item in reversed(state.control.retrieval_events)
                             if item.get("tool_call_id") == message.id
-                            or item.get("need_id") == need.id
-                            and item.get("status") == "REQUESTED"
                         ),
                         None,
                     )
@@ -437,7 +515,14 @@ def observe_tool_message(
         host.need_resolver.resolve(state)
         if host.config.skills_enabled and host.skills.last_recovery_mode is not None:
             host.skills.refresh(state, event="RECOVERY_MODE_CHANGE", recovery_mode=None)
-    return ObservationOutcome(matched, classification, failed, empty, uncertain)
+    return ObservationOutcome(
+        matched,
+        classification,
+        failed,
+        empty,
+        uncertain,
+        infrastructure_failure,
+    )
 
 
 def apply_mutation_readback(

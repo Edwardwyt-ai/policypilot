@@ -309,6 +309,7 @@ class ControlState(BaseModel):
     planner_events: list[dict[str, Any]] = Field(default_factory=list)
     acquisition_planning_events: list[dict[str, Any]] = Field(default_factory=list)
     need_registry_events: list[dict[str, Any]] = Field(default_factory=list)
+    pending_retrieval_events: dict[str, dict[str, Any]] = Field(default_factory=dict)
     retrieval_events: list[dict[str, Any]] = Field(default_factory=list)
     context_compressor_events: list[dict[str, Any]] = Field(default_factory=list)
     context_rehydration_events: list[dict[str, Any]] = Field(default_factory=list)

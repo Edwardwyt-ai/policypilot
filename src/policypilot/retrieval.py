@@ -74,8 +74,6 @@ def build_retrieval_call(state: PolicyPilotState, need: InformationNeed, tool: T
         first = next(iter(fields), None)
         arguments = {first: query} if first else {}
     call = ToolCall(id=f"need_{uuid.uuid4().hex[:12]}", name=tool.name, arguments=arguments, requestor="assistant")
-    need.retrieval_attempts += 1
-    need.acquisition_count += 1
     event = {
         "turn": len(state.messages),
         "tool_call_id": call.id,
@@ -87,14 +85,14 @@ def build_retrieval_call(state: PolicyPilotState, need: InformationNeed, tool: T
         "scope": need.scope,
         "source": need.source,
         "status": "REQUESTED",
-        "attempt": need.retrieval_attempts,
+        "attempt": need.retrieval_attempts + 1,
+        "attempt_committed": False,
         "query": query,
         "candidate_documents": [],
         "coverage": None,
         "matched_need_ids": [],
         "partial_need_ids": [],
-        "why_again": "coverage remained partial or absent" if need.retrieval_attempts > 1 else "initial unresolved policy gap",
+        "why_again": "coverage remained partial or absent" if need.retrieval_attempts else "initial unresolved policy gap",
     }
-    state.control.retrieval_events.append(event)
-    state.control.retrieval_query_history.append({"turn": len(state.messages), "need_id": need.id, "query": query})
+    state.control.pending_retrieval_events[call.id] = event
     return call
