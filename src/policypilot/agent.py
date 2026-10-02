@@ -12,6 +12,7 @@ from policypilot.checkpoint import JsonCheckpointStore
 from policypilot.compression import ToolContextCompressor
 from policypilot.config import PolicyPilotConfig
 from policypilot.coverage import EvidenceResolver
+from policypilot.coverage_manager import LightweightCoverageManager
 from policypilot.errors import PolicyPilotErrorType
 from policypilot.llm_runtime import LLMRuntime
 from policypilot.memory.embeddings import OllamaEpisodeEmbedder
@@ -152,7 +153,17 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
             max_candidates=self.config.laya_max_candidates,
             max_tool_options=self.config.laya_max_tool_options,
         )
-        self.evidence_resolver = EvidenceResolver()
+        coverage_manager = (
+            LightweightCoverageManager(
+                self.llm_runtime,
+                max_candidate_needs=self.config.coverage_max_candidate_needs,
+                max_context_chars=self.config.coverage_max_context_chars,
+                max_evidence_chars=self.config.coverage_max_evidence_chars,
+            )
+            if self.config.coverage_llm_enabled
+            else None
+        )
+        self.evidence_resolver = EvidenceResolver(coverage_manager)
         self.need_registry = NeedRegistry(
             capabilities=read_capability_names,
             evidence_resolver=self.evidence_resolver,

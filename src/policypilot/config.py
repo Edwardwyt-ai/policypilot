@@ -31,6 +31,10 @@ class PolicyPilotConfig:
     light_temperature: float = 0.1
     structured_repair_attempts: int = 1
     semantic_planner_enabled: bool = True
+    coverage_llm_enabled: bool = True
+    coverage_max_candidate_needs: int = 8
+    coverage_max_context_chars: int = 2400
+    coverage_max_evidence_chars: int = 1400
     laya_acquisition_enabled: bool = True
     laya_model: str = "convaiinnovations/laya"
     laya_device: str = "auto"

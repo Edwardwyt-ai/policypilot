@@ -1,10 +1,11 @@
-"""Deterministic policy-evidence compatibility and coverage resolution."""
+"""Bounded semantic policy-evidence coverage resolution."""
 
 from __future__ import annotations
 
 import re
 from typing import Literal
 
+from policypilot.coverage_manager import LightweightCoverageManager
 from policypilot.evidence import EvidenceRecord
 from policypilot.state import InformationNeed, PolicyPilotState
 from policypilot.taxonomy import normalize_text
@@ -35,6 +36,16 @@ def _evidence_text(evidence: EvidenceRecord) -> str:
 
 
 class EvidenceResolver:
+    def __init__(
+        self,
+        manager: LightweightCoverageManager | None = None,
+    ):
+        self.manager = manager
+
+    @property
+    def semantic_enabled(self) -> bool:
+        return self.manager is not None
+
     @staticmethod
     def _supports_hard_requirement(
         state: PolicyPilotState, need: InformationNeed, text: str
@@ -75,7 +86,7 @@ class EvidenceResolver:
                     return False
         return True
 
-    def coverage(
+    def _deterministic_coverage(
         self,
         need: InformationNeed,
         evidence: EvidenceRecord,
@@ -115,6 +126,49 @@ class EvidenceResolver:
             return "PARTIAL"
         return "NO_MATCH"
 
+    def coverage(
+        self,
+        need: InformationNeed,
+        evidence: EvidenceRecord,
+        *,
+        state: PolicyPilotState | None = None,
+    ) -> Coverage:
+        """Return conservative synchronous coverage for registry lookbacks.
+
+        When semantic coverage is enabled, deterministic matching may identify a
+        relevant old evidence packet but cannot fully resolve a newly-created Need.
+        The batched semantic manager owns MATCH decisions for live retrievals.
+        """
+
+        result = self._deterministic_coverage(need, evidence, state=state)
+        if self.semantic_enabled and result == "MATCH":
+            return "PARTIAL"
+        return result
+
+    @staticmethod
+    def _identity_compatible(need: InformationNeed, text: str) -> bool:
+        entity = normalize_text(need.entity)
+        generic = {
+            "banking_product",
+            "policy",
+            "product",
+            "card",
+            "account",
+            "unknown",
+        }
+        if (
+            entity not in generic
+            and entity.replace("_", " ") not in text
+            and entity not in text
+        ):
+            return False
+        scope = normalize_text(need.scope or "")
+        if "personal" in scope and "business" in text and "personal" not in text:
+            return False
+        if "business" in scope and "personal" in text and "business" not in text:
+            return False
+        return True
+
     def resolve(
         self,
         state: PolicyPilotState,
@@ -124,8 +178,47 @@ class EvidenceResolver:
     ) -> dict[str, object]:
         matched: list[str] = []
         partial: list[str] = []
-        for need in state.open_needs("POLICY"):
-            coverage = self.coverage(need, evidence, state=state)
+        candidates = (
+            self.manager.candidate_needs(state, evidence, trigger_need_id)
+            if self.manager is not None
+            else list(state.open_needs("POLICY"))
+        )
+        semantic_failed = False
+        decisions: dict[str, Coverage] = {}
+        included = candidates
+        if self.semantic_enabled and candidates:
+            try:
+                decisions, included = self.manager.assess(
+                    state, evidence, candidates
+                )
+                state.control.route_trace.append(
+                    f"coverage_manager:LIGHT:{len(included)}"
+                )
+            except Exception as exc:
+                semantic_failed = True
+                state.control.route_trace.append(
+                    f"coverage_manager:fallback:{type(exc).__name__}"
+                )
+
+        text = _evidence_text(evidence)
+        for need in included:
+            if self.semantic_enabled and not semantic_failed:
+                coverage = decisions.get(need.id, "NO_MATCH")
+            else:
+                coverage = self._deterministic_coverage(need, evidence, state=state)
+                if self.semantic_enabled and coverage == "MATCH":
+                    coverage = "PARTIAL"
+                if (
+                    semantic_failed
+                    and need.id == trigger_need_id
+                    and coverage == "NO_MATCH"
+                ):
+                    coverage = "PARTIAL"
+            if coverage == "MATCH" and (
+                not self._identity_compatible(need, text)
+                or not self._supports_hard_requirement(state, need, text)
+            ):
+                coverage = "PARTIAL"
             if coverage == "NO_MATCH":
                 continue
             need.coverage = coverage
@@ -160,7 +253,10 @@ class EvidenceResolver:
         )
         trigger_coverage: Coverage = "NO_MATCH"
         if trigger is not None:
-            trigger_coverage = self.coverage(trigger, evidence, state=state)
+            if trigger.id in matched:
+                trigger_coverage = "MATCH"
+            elif trigger.id in partial:
+                trigger_coverage = "PARTIAL"
             trigger.coverage = trigger_coverage
             if trigger_coverage == "NO_MATCH" and trigger.query_id:
                 trigger.status = "EXHAUSTED"

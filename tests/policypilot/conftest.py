@@ -3,6 +3,7 @@ from collections.abc import Callable
 import pytest
 
 from policypilot.agent import PolicyPilotAgent
+from policypilot.config import PolicyPilotConfig
 from policypilot.tool_policy import ToolBudget
 from tau2.environment.tool import as_tool
 from tau2.environment.toolkit import ToolType, is_tool
@@ -53,6 +54,7 @@ def tools():
 @pytest.fixture
 def agent_factory(tools) -> Callable[..., PolicyPilotAgent]:
     def _factory(**kwargs) -> PolicyPilotAgent:
+        kwargs.setdefault("config", PolicyPilotConfig(coverage_llm_enabled=False))
         return PolicyPilotAgent(
             tools=tools,
             domain_policy="Use the provided tools and policy.",

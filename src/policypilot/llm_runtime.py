@@ -23,6 +23,7 @@ from tau2.utils.llm_utils import generate
 
 LLMNode = Literal[
     "semantic_planner",
+    "coverage_manager",
     "profile_extractor",
     "episode_extractor",
     "skill_matcher",
@@ -84,13 +85,16 @@ class LLMRuntime:
         self.generate_fn = generate_fn
         self.light_temperature = light_temperature
         self.structured_repair_attempts = structured_repair_attempts
-        self.lightweight_max_tokens = lightweight_max_tokens or {
+        default_lightweight_max_tokens = {
             "semantic_planner": 400,
+            "coverage_manager": 180,
             "profile_extractor": 300,
             "episode_extractor": 600,
             "skill_matcher": 120,
             "context_compressor": 600,
         }
+        default_lightweight_max_tokens.update(lightweight_max_tokens or {})
+        self.lightweight_max_tokens = default_lightweight_max_tokens
         self.traces: list[LLMCallTrace] = []
 
     def call_message(

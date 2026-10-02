@@ -29,6 +29,9 @@ from policypilot.evaluation import (  # noqa: E402
     write_config,
 )
 from policypilot.registry import register_policypilot  # noqa: E402
+from policypilot.runtime.preflight import (  # noqa: E402
+    ensure_ollama_embedding_runtime,
+)
 from tau2.data_model.simulation import TextRunConfig  # noqa: E402
 from tau2.runner import get_tasks, run_tasks  # noqa: E402
 
@@ -67,6 +70,11 @@ def parse_args() -> argparse.Namespace:
         "--splits-file",
         type=Path,
         default=ROOT / "configs" / "evaluation_splits.json",
+    )
+    parser.add_argument(
+        "--skip-runtime-preflight",
+        action="store_true",
+        help="Skip local Ollama startup and embedding health checks.",
     )
     return parser.parse_args()
 
@@ -125,6 +133,14 @@ def select_tasks(args: argparse.Namespace):
 
 def main() -> None:
     args = parse_args()
+    if args.retrieval_config == "local_hybrid" and not args.skip_runtime_preflight:
+        runtime = ensure_ollama_embedding_runtime(ROOT)
+        action = "started" if runtime.started else "ready"
+        print(
+            "PolicyPilot preflight: "
+            f"Ollama {action}; model={runtime.model}; "
+            f"dimensions={runtime.embedding_dimensions}; endpoint={runtime.endpoint}"
+        )
     register_policypilot()
     task_ids, tasks_by_id = select_tasks(args)
     run_dir = ROOT / "data" / "simulations" / args.save_to

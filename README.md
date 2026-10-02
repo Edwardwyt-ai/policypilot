@@ -78,6 +78,13 @@ local Qdrant persistence.
 
 Run one benchmark task:
 
+For the default `local_hybrid` retrieval mode, the runner checks Ollama before
+task execution. If it is offline, it automatically discovers and runs a sibling
+`qwen-api/start-qwen-api.ps1`, then verifies the configured embedding model with
+a real embedding request. Set `POLICYPILOT_OLLAMA_START_SCRIPT` when the script
+is stored elsewhere. Use `--skip-runtime-preflight` only when Ollama is managed
+externally or the selected retrieval mode does not require it.
+
 ```powershell
 python scripts/evaluate_v1.py `
   --task-ids task_001 `

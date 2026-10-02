@@ -23,6 +23,7 @@ class ModelRouting:
     def as_dict(self) -> dict[str, str]:
         return {
             "semantic_planner": self.light_model,
+            "coverage_manager": self.light_model,
             "profile_extractor": self.light_model,
             "episode_extractor": self.light_model,
             "skill_matcher": self.light_model,

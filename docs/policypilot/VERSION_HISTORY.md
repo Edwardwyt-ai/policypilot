@@ -21,6 +21,94 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Local Runtime Preflight V1
+
+- Date: 2026-10-02
+- Status: implemented, unit-verified, and local-service-smoke-verified
+- Parent: Unreleased - Lightweight Coverage Manager V1
+
+### Architecture And Behavior
+
+- The V1 evaluation runner now checks the local Ollama embedding runtime before
+  any `local_hybrid` benchmark task begins. A healthy service must expose the
+  configured model and return a non-empty embedding vector.
+- When Ollama is unavailable, the preflight first uses
+  `POLICYPILOT_OLLAMA_START_SCRIPT`, then searches for the sibling
+  `qwen-api/start-qwen-api.ps1`, and finally falls back to `ollama serve` when
+  the executable is on PATH.
+- Missing services, models, and invalid embedding responses fail before the
+  tau2 simulation loop, preventing repeated retrieval infrastructure failures.
+  `--skip-runtime-preflight` remains available for externally managed runtimes.
+- Qdrant local persistence and the Laya reranker are in-process components and
+  therefore do not receive separate service launchers.
+
+### Verification Evidence
+
+- Runtime preflight tests: `5 passed`.
+- A real local health check found `qwen3-embedding:0.6b` and returned a
+  1,024-dimensional vector. A runner-entry smoke confirmed preflight executes
+  before task selection without invoking a paid model.
+- Full PolicyPilot regression: `160 passed, 1 skipped`; Ruff passed. No paid
+  benchmark was rerun because task behavior and evaluator semantics did not
+  change.
+
+## Unreleased - Lightweight Coverage Manager V1
+
+- Date: 2026-10-02
+- Status: implemented and unit-verified
+- Parent: Unreleased - Repository Directory Organization V1
+
+### Architecture And Behavior
+
+- Added one batched `coverage_manager` call on the light-model route for each
+  successful policy retrieval. It judges semantic evidence coverage without
+  creating Needs, choosing tools, changing the Goal, or emitting user actions.
+- The manager receives at most eight candidate policy Needs. Its compact context
+  contains only Need identity fields, matching hard constraints, document
+  references, and the bounded latest evidence summary; dialogue history, tool
+  catalogs, Memory, Skills, Facts, and the full coverage matrix are excluded.
+- Structured output contains only `need_id` and `MATCH`/`PARTIAL`. Omitted Needs
+  mean `NO_MATCH`; invented IDs are ignored. The light-node output budget is 180
+  tokens and the default input-character budget is 2,400.
+- Deterministic validation still rejects entity/scope conflicts and downgrades a
+  semantic `MATCH` that fails an explicit hard constraint. The main Decision LLM
+  retains final response and tool-call authority.
+- On timeout, invalid output, or provider failure, the trigger Need remains
+  conservatively `PARTIAL` instead of being falsely resolved or exhausted.
+- Existing deterministic coverage remains available when the semantic manager
+  is disabled, preserving offline and unit-test behavior.
+
+### Verification Evidence
+
+- Added tests for compact context construction, one-call batching, semantic
+  paraphrases, entity and hard-constraint vetoes, invented IDs, and provider
+  failure fallback.
+- Focused Coverage, Requirement, Need Registry, and model-routing tests:
+  `46 passed`.
+- Full PolicyPilot regression: `155 passed, 1 skipped`.
+- Ruff passed for all PolicyPilot source and tests.
+- Real `task_001`, seed 0 benchmark completed after starting the configured local
+  Ollama embedding service. Reward `0.0`; DB Check `false`; Required Actions
+  `0/1`; 16 steps; 4 tool calls, all policy retrievals; termination `user_stop`.
+- The four `coverage_manager` calls used `deepseek/deepseek-flash`, were `4/4`
+  structurally valid, consumed 3,487 input and 82 output tokens, cost
+  `0.00095634`, and added 2.999 seconds of model latency. Total run usage was
+  17,430 input and 1,236 output tokens, cost `0.00351348`, with 26.682 seconds
+  end-to-end latency. The source DB was unchanged.
+- The run exposed two unresolved semantic failures. Generic rewards-redemption
+  evidence was incorrectly accepted as full coverage for the comparative
+  `best cashback` Need, while candidate-product evidence remained partial. A
+  later goal-correction plan replaced the original comparative goal with the
+  user's complaint and dropped the cashback criterion. Broad repeated product
+  queries consequently retrieved irrelevant policy and the agent refused the
+  request without making the required recommendation/action.
+- Valid-run artifact:
+  `data/simulations/coverage_manager_task001_seed0_20261002_170500`.
+- Environment diagnostics are retained separately: the first attempt could not
+  create the run directory, and the second stopped after ten embedding failures
+  because the local Ollama service was not running. Neither diagnostic attempt
+  exercised semantic coverage successfully.
+
 ## Unreleased - Repository Directory Organization V1
 
 - Date: 2026-10-01

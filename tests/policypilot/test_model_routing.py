@@ -57,6 +57,7 @@ def test_model_routing_preserves_existing_model_and_supports_env(monkeypatch):
     monkeypatch.setenv("POLICYPILOT_MAIN_DECISION_MODEL", "deepseek/strong")
     routing = resolve_model_routing("fallback", PolicyPilotConfig())
     assert routing.model_for("semantic_planner") == "deepseek/light"
+    assert routing.model_for("coverage_manager") == "deepseek/light"
     assert routing.model_for("decision") == "deepseek/strong"
 
 
@@ -80,6 +81,16 @@ def test_structured_runtime_repairs_once_and_records_metrics():
     assert runtime.traces[0].structured_output_valid is False
     assert runtime.traces[1].structured_output_valid is True
     assert runtime.traces[1].retry_count == 1
+
+
+def test_runtime_merges_partial_lightweight_token_overrides():
+    runtime = LLMRuntime(
+        ModelRouting("light", "main"),
+        lightweight_max_tokens={"skill_matcher": 64},
+    )
+
+    assert runtime.lightweight_max_tokens["skill_matcher"] == 64
+    assert runtime.lightweight_max_tokens["coverage_manager"] == 180
 
 
 class StaticRuntime:
