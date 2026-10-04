@@ -47,6 +47,96 @@ user simulation, and evaluation. The inner LangGraph workflow is bounded and
 produces one externally visible action per turn. Tools still execute only in the
 tau2 environment.
 
+### LangGraph Topology
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "20px",
+    "fontFamily": "Arial, sans-serif",
+    "primaryTextColor": "#172033",
+    "lineColor": "#52657a"
+  },
+  "flowchart": {
+    "nodeSpacing": 32,
+    "rankSpacing": 42,
+    "padding": 24,
+    "curve": "basis",
+    "htmlLabels": true
+  }
+}}%%
+flowchart TD
+    START(["START"]) --> INGEST["1. INGEST<br/>Check execution budget"]
+
+    INGEST -->|Continue| UPDATE["2. UPDATE STATE<br/>Observe message and create Needs"]
+    INGEST -->|Budget exhausted| FINAL["14. FINALIZE<br/>Record trace and emit action"]
+
+    UPDATE -->|Normal| ROUTE{"4. ROUTE NEED"}
+    UPDATE -->|Failure| RECOVER["3. RECOVER<br/>Handle failed acquisition"]
+    UPDATE -->|Terminal response| FINAL
+
+    RECOVER -->|Continue| ROUTE
+    RECOVER -->|Stop| FINAL
+
+    ROUTE -->|User fact| ASK["5. ASK USER<br/>Request missing user information"]
+    ROUTE -->|Policy evidence| POLICY["6. RETRIEVE POLICY<br/>Emit KB search call"]
+    ROUTE -->|Live data| TOOL["7. READ TOOL<br/>Emit transactional read call"]
+    ROUTE -->|Unknown| UNKNOWN["8. UNKNOWN<br/>Clarify or stop safely"]
+    ROUTE -->|Ready| HYDRATE["9. HYDRATE CONTEXT<br/>Load referenced evidence"]
+
+    ASK --> FINAL
+    POLICY --> FINAL
+    TOOL --> FINAL
+    UNKNOWN --> FINAL
+
+    HYDRATE --> CONTEXT["10. BUILD CONTEXT<br/>Assemble bounded context"]
+    CONTEXT --> DECISION{"11. MAIN LLM DECISION<br/>Propose response or tool call"}
+
+    DECISION -->|Action| VALIDATE{"12. VALIDATE<br/>Apply deterministic guard"}
+    DECISION -->|Fallback Need created| ROUTE
+    DECISION -->|Direct response| FINAL
+
+    VALIDATE -->|Allowed| FINAL
+    VALIDATE -->|Non-recoverable rejection| FINAL
+    VALIDATE -->|Information gap| GUARD["13. GUARD RECOVER<br/>Convert rejection into a Need"]
+
+    GUARD -->|Recovery Need created| ROUTE
+    GUARD -->|Recovery exhausted| FINAL
+
+    FINAL --> END(["END"])
+
+    classDef entry fill:#dcebfA,stroke:#376b9e,stroke-width:2px,color:#102a43;
+    classDef state fill:#e8eef7,stroke:#526d82,stroke-width:2px,color:#172033;
+    classDef route fill:#fff0c2,stroke:#9b7417,stroke-width:3px,color:#3d2d00;
+    classDef action fill:#fff6dc,stroke:#b58a27,stroke-width:2px,color:#3d2d00;
+    classDef llm fill:#ddf3e0,stroke:#3f7d48,stroke-width:3px,color:#16351c;
+    classDef guard fill:#f9dddd,stroke:#a34848,stroke-width:2px,color:#491b1b;
+    classDef terminal fill:#e1e1e1,stroke:#555555,stroke-width:2px,color:#111111;
+
+    class START,INGEST entry;
+    class UPDATE,RECOVER,HYDRATE,CONTEXT state;
+    class ROUTE route;
+    class ASK,POLICY,TOOL,UNKNOWN action;
+    class DECISION llm;
+    class VALIDATE,GUARD guard;
+    class FINAL,END terminal;
+```
+
+Need creation is an internal capability rather than a standalone graph node:
+
+- `update_state` creates initial Need candidates from deterministic semantic
+  parsing, a conditionally invoked lightweight semantic planner, and baseline
+  goal-derived seeds. `NeedRegistry` then deduplicates and registers them.
+- `decision` may create a bounded fallback Need when the main model identifies
+  missing information that prevents a grounded decision.
+- `guard_recover` converts a recoverable validation failure into a new Need and
+  routes it back through the same acquisition workflow.
+
+`retrieve_policy` and `read_tool` emit tool calls but do not execute them. The
+tau2 environment executes each call outside LangGraph, and the resulting
+`ToolMessage` enters the graph through `update_state` on the next turn.
+
 ## Main Components
 
 | Component | Responsibility |
