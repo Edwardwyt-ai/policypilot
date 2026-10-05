@@ -2,8 +2,6 @@
 
 ## Source Pin
 
-- Base repository: `https://github.com/sierra-research/tau2-bench`
-- Local path: `C:\Users\王瑜涛\Desktop\policypilot`
 - Repository release/tag: `v1.0.1`
 - Tag object SHA: `b711c1ead46f55111bf765cf44d5da8bacc2d28c`
 - Source commit SHA: `fc0055dc4e0a316c3f83133267fbd6faaa770992`
