@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from policypilot.errors import PolicyPilotErrorType
+from policypilot.runtime.mutations import mutation_manager
 from policypilot.state import (
     InformationNeed,
-    MutationRecord,
     NeedCandidate,
     PolicyPilotState,
     ToolCallRecord,
@@ -394,6 +394,18 @@ def validate_proposal(
             details=error,
             proposed_action=proposed_action,
         )
+    mutation_calls = [
+        call
+        for call in message.tool_calls
+        if host.guard.classify(call.name) == "mutation"
+    ]
+    if mutation_calls and len(message.tool_calls) != 1:
+        return ValidationResult(
+            allowed=False,
+            reason_code="MUTATION_MUST_EXECUTE_ALONE",
+            details="A mutation must be the only tool call in one Agent turn.",
+            proposed_action=proposed_action,
+        )
     control = state.control
     if control.tool_call_count + len(message.tool_calls) > host.budget.max_tool_calls:
         return ValidationResult(
@@ -477,25 +489,16 @@ def validate_proposal(
         classification = host.guard.classify(call.name)
         signature = tool_signature(call.name, call.arguments)
         if classification == "mutation":
-            prior = next(
-                (
-                    item
-                    for item in reversed(state.mutations)
-                    if item.signature == signature
-                    and item.status in {"SENT", "CONFIRMED", "UNKNOWN"}
-                ),
-                None,
+            issue = mutation_manager.validate_duplicate(
+                state, signature=signature
             )
-            if prior is not None:
+            if issue is not None:
                 control.duplicate_call_count += 1
                 return ValidationResult(
                     allowed=False,
                     error_type=PolicyPilotErrorType.DUPLICATE_TOOL_CALL,
-                    reason_code="DUPLICATE_MUTATION",
-                    details=(
-                        "Mutation with the same idempotency signature is already "
-                        f"{prior.status.lower()}."
-                    ),
+                    reason_code=issue.reason_code,
+                    details=issue.details,
                     proposed_action=proposed_action,
                 )
         if control.signature_versions.get(signature) == control.observation_version:
@@ -552,6 +555,19 @@ def validate_proposal(
                 details="Mutation blocked pending read verification.",
                 proposed_action=proposed_action,
             )
+        if classification == "mutation":
+            issue = mutation_manager.validate_authorization(
+                state,
+                tool_name=call.name,
+                arguments=call.arguments,
+            )
+            if issue is not None:
+                return ValidationResult(
+                    allowed=False,
+                    reason_code=issue.reason_code,
+                    details=issue.details,
+                    proposed_action=proposed_action,
+                )
     # Bind Decision-authored retrieval only after every guard check succeeds.
     # Formal retrieval nodes already staged their binding before validation.
     for call in direct_retrievals:
@@ -644,19 +660,13 @@ def record_valid_tool_calls(
             }
         )
         if classification == "mutation":
-            idempotency_key = hashlib.sha256(signature.encode("utf-8")).hexdigest()
-            state.mutations.append(
-                MutationRecord(
-                    mutation_id=f"mutation_{uuid.uuid4().hex}",
-                    idempotency_key=idempotency_key,
-                    tool_name=call.name,
-                    arguments=dict(call.arguments),
-                    signature=signature,
-                    tool_call_id=call.id,
-                    status="SENT",
-                    planned_turn=len(state.messages),
-                    updated_turn=len(state.messages),
-                )
+            mutation_manager.record_sent(
+                state,
+                tool_name=call.name,
+                arguments=dict(call.arguments),
+                signature=signature,
+                tool_call_id=call.id,
+                turn=len(state.messages),
             )
             control.last_mutation_version = control.observation_version
         if is_knowledge_tool(call.name):

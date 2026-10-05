@@ -17,24 +17,32 @@ from policypilot.planning import GoalDelta, PlannerModelRouter, SemanticPlan
 from policypilot.policy_engine import PassthroughPolicyEngine, PolicyEngine
 from policypilot.skills import SkillRuntime
 from policypilot.state import (
+    ActionAuthorization,
     ControlState,
+    FactAuthorityScope,
     FactRecord,
     GoalCriterion,
     InformationNeed,
     IntentType,
+    MutationRecord,
+    MutationTransition,
     PolicyPilotState,
     StructuredGoal,
 )
 from policypilot.workflow.graph import PolicyPilotGraphState, PolicyPilotWorkflow
 
 __all__ = [
+    "ActionAuthorization",
     "ControlState",
+    "FactAuthorityScope",
     "FactRecord",
     "GoalCriterion",
     "GoalDelta",
     "LLMCallTrace",
     "InformationNeed",
     "IntentType",
+    "MutationRecord",
+    "MutationTransition",
     "NeedResolver",
     "PlannerModelRouter",
     "EpisodeMemory",

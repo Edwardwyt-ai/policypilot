@@ -123,12 +123,42 @@ def attach_metrics_metadata(
                 "key": fact.key,
                 "value": fact.value,
                 "source_type": fact.source_type,
+                "authority_scope": fact.authority_scope,
                 "verified": fact.verified,
             }
             for fact in state.facts
         ],
         "tool_history": [
             record.model_dump(mode="json") for record in state.tool_history
+        ],
+        "action_authorizations": [
+            {
+                "authorization_id": item.authorization_id,
+                "source_turn": item.source_turn,
+                "action_terms": item.action_terms,
+                "expires_turn": item.expires_turn,
+                "bound_tool_name": item.bound_tool_name,
+                "consumed": item.consumed_by_mutation_id is not None,
+                "revoked": item.revoked,
+            }
+            for item in state.action_authorizations
+        ],
+        "mutations": [
+            {
+                "mutation_id": item.mutation_id,
+                "operation_fingerprint": item.operation_fingerprint,
+                "tool_name": item.tool_name,
+                "tool_call_id": item.tool_call_id,
+                "status": item.status,
+                "authorization_id": item.authorization_id,
+                "verification_tool": item.verification_tool,
+                "readback_tool_call_id": item.readback_tool_call_id,
+                "status_history": [
+                    transition.model_dump(mode="json")
+                    for transition in item.status_history
+                ],
+            }
+            for item in state.mutations
         ],
         "route_trace": control.route_trace,
         "provenance": {

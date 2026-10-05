@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from policypilot.runtime.mutations import find_active_authorization
 from tau2.data_model.message import ToolCall
 from tau2.environment.tool import Tool
 
@@ -206,17 +207,7 @@ class ToolExposureResolver:
         missing = required - known
         if len(missing) > 1:
             return False
-        action_tokens = {
-            token
-            for token in re.findall(r"[a-z0-9]+", tool.name.lower())
-            if token not in _RESOURCE_STOP_WORDS and len(token) >= 4
-        }
-        recent_text = " ".join(
-            message.content or "" for message in state.messages[-4:]
-        ).lower()
-        return bool(
-            action_tokens.intersection(re.findall(r"[a-z0-9]+", recent_text))
-        )
+        return find_active_authorization(state, tool.name) is not None
 
     def for_need(self, need: Any) -> list[Tool]:
         if need is None:

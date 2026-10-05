@@ -4,6 +4,7 @@ from policypilot.runtime.actions import (
     register_decision_fallback,
     validate_proposal,
 )
+from policypilot.runtime.mutations import capture_action_authorization
 from policypilot.runtime.recovery import recover_validation_failure
 from policypilot.state import FactRecord, InformationNeed
 from tau2.data_model.message import AssistantMessage, ToolCall, ToolMessage, UserMessage
@@ -62,6 +63,13 @@ def test_verified_identifier_unlocks_mutation_and_guard_rejects_mismatch(agent_f
     state = agent.get_init_state()
     state.intent = "TRANSACTIONAL"
     state.messages.append(UserMessage.text("Please mutate this account now."))
+    capture_action_authorization(
+        state,
+        content="Please mutate this account now.",
+        turn=0,
+        evidence_ref="user-authorization",
+        explicit=True,
+    )
     state.facts.append(
         FactRecord(
             id="tool-account",
@@ -447,7 +455,14 @@ def test_mutation_exposed_when_dialogue_and_authoritative_facts_satisfy_precondi
     agent = agent_factory(config=PolicyPilotConfig(memory_enabled=False))
     state = agent.get_init_state()
     state.messages.append(AssistantMessage.text("I need to log verification now."))
-    state.messages.append(UserMessage.text("I confirm my identity details."))
+    state.messages.append(UserMessage.text("Please log my identity verification now."))
+    capture_action_authorization(
+        state,
+        content="Please log my identity verification now.",
+        turn=1,
+        evidence_ref="user-authorization",
+        explicit=True,
+    )
     for turn, aspect in enumerate(
         ("name", "user_id", "address", "email", "phone_number", "date_of_birth")
     ):

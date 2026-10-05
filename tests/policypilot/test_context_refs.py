@@ -277,3 +277,44 @@ def test_hydration_events_are_exported_to_evaluation_metadata(agent_factory):
     assert exported["context_rehydration_events"] == (
         state.control.context_rehydration_events
     )
+
+
+def test_decision_context_prefers_need_bound_evidence_over_lexical_overlap(tools):
+    state = _state()
+    state.evidence.extend(
+        [
+            EvidenceRecord(
+                evidence_id="bound-policy",
+                source_type="knowledge_retrieval",
+                turn_index=1,
+                summary="The annual fee requirement is zero.",
+            ),
+            EvidenceRecord(
+                evidence_id="lexical-only",
+                source_type="knowledge_retrieval",
+                turn_index=2,
+                summary="Cashback card comparison marketing overview.",
+            ),
+        ]
+    )
+    state.information_needs.append(
+        InformationNeed(
+            id="need-fee",
+            entity="personal card",
+            aspect="annual_fee",
+            source="POLICY",
+            status="RESOLVED",
+            reason="Verify the hard no-fee constraint",
+            critical=True,
+            evidence_refs=["bound-policy"],
+        )
+    )
+
+    context = build_agent_context(
+        state,
+        tools,
+        config=PolicyPilotConfig(max_context_evidence=1),
+    )
+
+    assert "bound-policy" in context.structured_summary
+    assert "lexical-only" not in context.structured_summary

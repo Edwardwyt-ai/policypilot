@@ -79,16 +79,59 @@ def _selected_records(
         for name, field in tool.params.model_fields.items()
         if field.is_required()
     }
-    relevant = [
-        fact
-        for fact in state.facts
-        if fact.aspect in required_fields
-        or not focus
-        or focus & _tokens(f"{fact.entity} {fact.aspect} {fact.value}")
-    ]
-    facts = relevant[-min(config.max_context_facts, 16):]
-    evidence = [e for e in state.evidence if not focus or focus & _tokens(e.summary)][-min(config.max_context_evidence, 2):]
     needs = state.open_needs()[:10]
+    decision_needs = [
+        need
+        for need in state.information_needs
+        if need in needs
+        or need.purpose in {"PRE_MUTATION", "VERIFICATION"}
+        or (need.critical and need.status == "RESOLVED")
+    ]
+    linked_evidence_ids = {
+        ref
+        for need in decision_needs
+        for ref in need.evidence_refs
+    }
+    fact_scores = []
+    for position, fact in enumerate(state.facts):
+        overlap = len(focus.intersection(_tokens(f"{fact.entity} {fact.aspect} {fact.value}")))
+        linked = bool(fact.evidence_ref and fact.evidence_ref in linked_evidence_ids)
+        if not (fact.aspect in required_fields or linked or not focus or overlap):
+            continue
+        score = overlap
+        score += 120 if fact.aspect in required_fields else 0
+        score += 100 if linked else 0
+        score += 30 if fact.verified else 0
+        score -= 200 if fact.stale_at is not None else 0
+        fact_scores.append((score, position, fact))
+    fact_scores.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    facts = [
+        item[2]
+        for item in fact_scores[: min(config.max_context_facts, 16)]
+    ]
+
+    evidence_scores = []
+    for position, item in enumerate(state.evidence):
+        linked_needs = [
+            need for need in decision_needs if item.evidence_id in need.evidence_refs
+        ]
+        overlap = len(focus.intersection(_tokens(item.summary)))
+        if not linked_needs and focus and not overlap:
+            continue
+        score = overlap
+        score += 140 if any(need in needs for need in linked_needs) else 0
+        score += 100 if any(need.critical for need in linked_needs) else 0
+        score += 80 if any(
+            need.purpose in {"PRE_MUTATION", "VERIFICATION"}
+            for need in linked_needs
+        ) else 0
+        score += 40 if linked_needs else 0
+        evidence_scores.append((score, position, item))
+    evidence_scores.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    evidence = [
+        item[2]
+        for item in evidence_scores[: min(config.max_context_evidence, 2)]
+    ]
     return facts, evidence, needs
 
 
@@ -112,7 +155,8 @@ def _summary(
     ) or "None"
     fact_text = "\n".join(
         f"- {f.entity}.{f.aspect}={_compact(f.value, 320)} "
-        f"[{f.source}; evidence={f.evidence_ref or 'none'}]"
+        f"[{f.source}; authority={f.authority_scope}; verified={f.verified}; "
+        f"evidence={f.evidence_ref or 'none'}]"
         for f in facts
     ) or "None"
     evidence_text = "\n".join(

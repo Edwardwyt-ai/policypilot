@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 from policypilot.errors import ErrorRecord, PolicyPilotErrorType
 from policypilot.evidence import EvidenceRecord
@@ -13,6 +13,9 @@ from tau2.data_model.message import APICompatibleMessage, SystemMessage
 
 IntentType = Literal["INFORMATIONAL", "STATUS_CHECK", "ELIGIBILITY_CHECK", "TRANSACTIONAL", "CORRECTION", "OTHER"]
 FactSource = Literal["USER", "TOOL", "POLICY"]
+FactAuthorityScope = Literal[
+    "USER_PROVIDED", "LIVE_SYSTEM", "POLICY_SOURCE", "UNVERIFIED"
+]
 NeedSource = Literal["USER", "POLICY", "TOOL", "UNKNOWN"]
 NeedStatus = Literal[
     "OPEN",
@@ -63,12 +66,27 @@ class FactRecord(BaseModel):
     source_identifier: str | None = None
     turn_index: int
     authoritative: bool = False
+    authority_scope: FactAuthorityScope | None = None
     freshness: datetime | None = None
     observed_at: datetime | None = None
     observed_version: int = 0
     stale_at: datetime | None = None
     resource_tags: list[str] = Field(default_factory=list)
     raw_path: str | None = None
+
+    @model_validator(mode="after")
+    def set_authority_scope(self):
+        if self.authority_scope is None:
+            self.authority_scope = (
+                "UNVERIFIED"
+                if not self.authoritative
+                else {
+                    "USER": "USER_PROVIDED",
+                    "TOOL": "LIVE_SYSTEM",
+                    "POLICY": "POLICY_SOURCE",
+                }[self.source]
+            )
+        return self
 
     @property
     def key(self) -> str:
@@ -84,6 +102,12 @@ class FactRecord(BaseModel):
         # A user assertion may be usable as task input, but it is not an
         # independently verified live-system fact.
         return self.authoritative and self.source in {"TOOL", "POLICY"}
+
+    @property
+    def accepted(self) -> bool:
+        """Whether this source is accepted for its own authority scope."""
+
+        return self.authoritative
 
 
 class FactCandidate(BaseModel):
@@ -241,9 +265,34 @@ class ToolCallRecord(BaseModel):
     need_id: str | None = None
 
 
+class ActionAuthorization(BaseModel):
+    """One explicit, bounded user authorization for a state-changing action."""
+
+    authorization_id: str
+    source_turn: int
+    evidence_ref: str | None = None
+    utterance: str
+    action_terms: list[str] = Field(default_factory=list)
+    authorized_values: list[str] = Field(default_factory=list)
+    expires_turn: int
+    bound_tool_name: str | None = None
+    bound_arguments: dict[str, Any] = Field(default_factory=dict)
+    consumed_by_mutation_id: str | None = None
+    revoked: bool = False
+
+
+class MutationTransition(BaseModel):
+    status: MutationStatus
+    turn: int
+    reason: str
+    tool_call_id: str | None = None
+
+
 class MutationRecord(BaseModel):
     mutation_id: str
-    idempotency_key: str
+    operation_fingerprint: str = Field(
+        validation_alias=AliasChoices("operation_fingerprint", "idempotency_key")
+    )
     tool_name: str
     arguments: dict[str, Any]
     signature: str
@@ -253,6 +302,17 @@ class MutationRecord(BaseModel):
     updated_turn: int
     readback_tool_call_id: str | None = None
     details: str | None = None
+    authorization_id: str | None = None
+    verification_tool: str | None = None
+    verification_arguments: dict[str, Any] = Field(default_factory=dict)
+    expected_effect: dict[str, Any] = Field(default_factory=dict)
+    status_history: list[MutationTransition] = Field(default_factory=list)
+
+    @property
+    def idempotency_key(self) -> str:
+        """Compatibility accessor for checkpoints and integrations using the old name."""
+
+        return self.operation_fingerprint
 
 class ControlState(BaseModel):
     step_count: int = 0
@@ -333,6 +393,7 @@ class PolicyPilotState(BaseModel):
     raw_payloads: list[RawPayloadRecord] = Field(default_factory=list)
     context_manifests: list[ContextManifest] = Field(default_factory=list)
     tool_history: list[ToolCallRecord] = Field(default_factory=list)
+    action_authorizations: list[ActionAuthorization] = Field(default_factory=list)
     mutations: list[MutationRecord] = Field(default_factory=list)
     control: ControlState = Field(default_factory=ControlState)
     identity_matches: list[str] = Field(default_factory=list)

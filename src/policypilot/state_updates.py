@@ -15,20 +15,20 @@ from policypilot.taxonomy import canonicalize_aspect
 def is_explicit_action_request(content: str) -> bool:
     lowered = content.lower()
     action = re.search(
-        r"\b(close|change|freeze|replace|activate|transfer|submit|retry|apply|dispute|cancel|update)\b|关闭|修改|冻结|提交|重试|取消",
+        r"\b(close|change|freeze|replace|activate|transfer|send|pay|submit|retry|apply|dispute|cancel|update|open|create|lock|block|set|log|record|verify)\b|关闭|修改|冻结|提交|重试|取消|转账|支付|申请|开户|创建|记录|验证",
         lowered,
     )
+    strong_request = re.search(
+        r"\b(please|yes,?\s+(?:apply|submit|proceed)|i (?:want|need) you to)\b|请(?:帮我)?|现在(?:帮我)?|确认(?:申请|提交)",
+        lowered,
+    )
+    imperative = re.search(r"\b(go ahead|proceed|do it)\b", lowered)
     question = "?" in content or bool(
         re.search(r"\b(should|could|would|can|may|what|why|how|whether)\b|是否|能否|可以吗|怎么办", lowered)
     )
-    if not action or question:
+    if not action or (question and not strong_request):
         return False
-    return bool(
-        re.search(
-            r"\b(please|go ahead|proceed|do it|yes,?\s+(?:apply|submit|proceed)|i (?:want|need) you to)\b|请(?:帮我)?|现在(?:帮我)?|确认(?:申请|提交)",
-            lowered,
-        )
-    )
+    return bool(strong_request or imperative)
 
 
 def classify_intent(content: str) -> IntentType:
@@ -36,7 +36,7 @@ def classify_intent(content: str) -> IntentType:
     if re.search(r"\b(actually|instead|correction|i mean)\b|更正|改成", lowered):
         return "CORRECTION"
     action = re.search(
-        r"\b(close|change|freeze|replace|activate|transfer|submit|retry|apply|dispute|cancel|update)\b|关闭|修改|冻结|提交|重试|取消",
+        r"\b(close|change|freeze|replace|activate|transfer|send|pay|submit|retry|apply|dispute|cancel|update|open|create|lock|block|set|log|record|verify)\b|关闭|修改|冻结|提交|重试|取消|转账|支付|申请|开户|创建|记录|验证",
         lowered,
     )
     question = "?" in content or bool(

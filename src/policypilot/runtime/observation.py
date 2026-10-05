@@ -15,6 +15,7 @@ from policypilot.planning import (
     planner_trigger_reason,
 )
 from policypilot.provenance import record_payload
+from policypilot.runtime.mutations import capture_action_authorization, mutation_manager
 from policypilot.state import NeedCandidate, PolicyPilotState
 from policypilot.state_updates import (
     classify_intent,
@@ -196,6 +197,7 @@ def observe(
             memory_hints=memory_hints,
         )
         candidates = merge_semantic_plan(state, plan, turn)
+        explicit_action_authorized = plan.explicit_action_request
         skill_event = None
         if previous_goal != (state.goal.objective, state.goal.target):
             skill_event = (
@@ -218,6 +220,10 @@ def observe(
                     memory_hints=memory_hints,
                 )
                 candidates.extend(merge_semantic_plan(state, semantic_plan, turn))
+                explicit_action_authorized = (
+                    explicit_action_authorized
+                    or semantic_plan.explicit_action_request
+                )
                 planner_succeeded = True
             except Exception as exc:
                 state.add_error(
@@ -239,6 +245,13 @@ def observe(
                 "input_tokens": sum(item.input_tokens for item in planner_traces),
                 "output_tokens": sum(item.output_tokens for item in planner_traces),
             }
+        )
+        capture_action_authorization(
+            state,
+            content=message.content or "",
+            turn=turn,
+            evidence_ref=user_evidence.evidence_id,
+            explicit=explicit_action_authorized and state.intent == "TRANSACTIONAL",
         )
         if host.memory is not None:
             task_context = (
@@ -388,9 +401,12 @@ def observe_tool_message(
             )
         if uncertain:
             if mutation_record is not None:
-                mutation_record.status = "UNKNOWN"
-                mutation_record.updated_turn = len(state.messages)
-                mutation_record.details = "Tool result was ambiguous or failed."
+                mutation_manager.record_tool_result(
+                    mutation_record,
+                    succeeded=False,
+                    turn=len(state.messages),
+                    tool_call_id=message.id,
+                )
             state.control.mutation_verification_required = True
             state.control.unsafe_to_retry = True
             invalidate_tool_facts(state, runtime_metadata.invalidates)
@@ -445,9 +461,12 @@ def observe_tool_message(
         state.note_successful_observation()
         if classification == "mutation":
             if mutation_record is not None:
-                mutation_record.status = "CONFIRMED"
-                mutation_record.updated_turn = len(state.messages)
-                mutation_record.details = "Environment returned a successful result."
+                mutation_manager.record_tool_result(
+                    mutation_record,
+                    succeeded=True,
+                    turn=len(state.messages),
+                    tool_call_id=message.id,
+                )
             invalidate_tool_facts(state, runtime_metadata.invalidates)
         elif classification != "transaction_read" or _read_result_is_conclusive(content):
             update_facts_from_tool_evidence(state, evidence, raw_content=content)
@@ -528,48 +547,13 @@ def observe_tool_message(
 def apply_mutation_readback(
     state: PolicyPilotState, readback_tool_call_id: str, content: str
 ) -> str:
-    """Conservatively classify an authoritative read-back without guessing."""
-    record = next(
-        (item for item in reversed(state.mutations) if item.status == "UNKNOWN"),
-        None,
+    """Apply the verification contract owned by the central MutationManager."""
+
+    return mutation_manager.apply_readback(
+        state,
+        readback_tool_call_id=readback_tool_call_id,
+        content=content,
     )
-    if record is None:
-        return "UNKNOWN"
-    lowered = content.lower()
-    affirmative = False
-    try:
-        parsed = json.loads(content)
-        if isinstance(parsed, dict):
-            affirmative = any(
-                key.lower() in {"status", "state", "result"}
-                and str(value).lower()
-                in {"updated", "applied", "completed", "confirmed", "success"}
-                for key, value in parsed.items()
-            )
-    except (TypeError, ValueError):
-        pass
-    effect_values = [
-        str(value).lower()
-        for key, value in record.arguments.items()
-        if not key.lower().endswith("_id") and key.lower() != "id"
-    ]
-    if affirmative or effect_values and all(value in lowered for value in effect_values):
-        status = "CONFIRMED"
-        details = "Authoritative read-back contains every requested effect value."
-    elif any(
-        marker in lowered
-        for marker in ("not executed", "not applied", "unchanged", "no change")
-    ):
-        status = "FAILED"
-        details = "Authoritative read-back explicitly reports no applied change."
-    else:
-        status = "UNKNOWN"
-        details = "Authoritative read-back did not prove whether the mutation applied."
-    record.status = status
-    record.updated_turn = len(state.messages)
-    record.readback_tool_call_id = readback_tool_call_id
-    record.details = details
-    return status
 
 
 def ensure_mutation_verification_need(
@@ -600,6 +584,22 @@ def ensure_mutation_verification_need(
         for key, value in mutation_arguments.items()
         if key in capability.fields
     }
+    mutation_record = next(
+        (
+            item
+            for item in reversed(state.mutations)
+            if item.status == "UNKNOWN"
+            and item.tool_name == mutation_name
+            and item.arguments == mutation_arguments
+        ),
+        None,
+    )
+    if mutation_record is not None:
+        mutation_manager.bind_verification_contract(
+            mutation_record,
+            tool_name=capability.name,
+            arguments=arguments,
+        )
     host.need_registry.register_many(
         state,
         [
