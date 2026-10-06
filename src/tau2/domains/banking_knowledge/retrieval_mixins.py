@@ -81,16 +81,19 @@ class LocalHybridSearchMixin(metaclass=ToolKitType):
     """Constraint-preserving chunk retrieval backed by the local Qwen index."""
 
     @is_tool(ToolType.READ)
-    def KB_search(self, query: str) -> str:
+    def KB_search(self, query: str, global_query: str | None = None) -> str:
         """Rewrite and search policy chunks with BM25, dense retrieval, and reranking.
 
         Args:
             query: Need-driven query including all explicit user constraints.
+            global_query: Goal-level rewrite preserving the user's original semantics.
 
         Returns:
             Reranked source documents with the most relevant policy excerpts.
         """
-        return format_hybrid_search_response(self._hybrid_retriever.search(query))
+        return format_hybrid_search_response(
+            self._hybrid_retriever.search(query, global_query=global_query)
+        )
 
 
 class GrepMixin(metaclass=ToolKitType):

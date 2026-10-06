@@ -336,6 +336,7 @@ class LocalHybridSpec:
     chunks_per_document: int = 2
     rerank_candidate_k: int = 20
     model_rerank_weight: float = 0.35
+    need_channel_weight: float = 0.65
     reranker_model_path: Optional[str] = None
     dense_backend: Literal["qdrant", "numpy"] = "qdrant"
 
@@ -796,11 +797,7 @@ def build_tools(
         reranker_path = Path(
             spec.reranker_model_path
             or os.environ.get("POLICYPILOT_RERANKER_MODEL_PATH", "")
-            or Path.home()
-            / "Desktop"
-            / "qwen-api"
-            / "models"
-            / "qwen3-reranker-0.6b"
+            or Path.home() / "Desktop" / "qwen-api" / "models" / "qwen3-reranker-0.6b"
         )
         if not reranker_path.exists():
             raise FileNotFoundError(
@@ -808,11 +805,7 @@ def build_tools(
                 f"POLICYPILOT_RERANKER_MODEL_PATH (looked at {reranker_path})"
             )
         vector_root = (
-            DATA_DIR
-            / "tau2"
-            / "domains"
-            / "banking_knowledge"
-            / "vector_index"
+            DATA_DIR / "tau2" / "domains" / "banking_knowledge" / "vector_index"
         )
         index_dir = vector_root / "qwen3-embedding-0.6b"
         dense_index = None
@@ -822,9 +815,7 @@ def build_tools(
             )
             qdrant_url = os.environ.get("POLICYPILOT_QDRANT_URL")
             qdrant_path = Path(
-                os.environ.get(
-                    "POLICYPILOT_QDRANT_PATH", str(vector_root / "qdrant")
-                )
+                os.environ.get("POLICYPILOT_QDRANT_PATH", str(vector_root / "qdrant"))
             )
             if not qdrant_path.is_absolute():
                 qdrant_path = DATA_DIR.parent / qdrant_path
@@ -852,6 +843,7 @@ def build_tools(
             reranker=QwenLocalReranker(reranker_path),
             rerank_candidate_k=spec.rerank_candidate_k,
             model_rerank_weight=spec.model_rerank_weight,
+            need_channel_weight=spec.need_channel_weight,
         )
         tools = KnowledgeToolsWithLocalHybridSearch(db, retriever)
         tools.set_read_log_allowlist(read_log_allowlist)

@@ -8,7 +8,11 @@ from policypilot.requirements import (
     retrieval_coverage,
     retrieval_gaps,
 )
-from policypilot.retrieval import build_retrieval_query
+from policypilot.retrieval import (
+    build_global_retrieval_query,
+    build_retrieval_call,
+    build_retrieval_query,
+)
 from policypilot.state import (
     GoalCriterion,
     InformationNeed,
@@ -16,7 +20,8 @@ from policypilot.state import (
     PolicyPilotState,
 )
 from policypilot.state_updates import classify_intent
-from tau2.data_model.message import SystemMessage
+from tau2.data_model.message import SystemMessage, UserMessage
+from tau2.environment.tool import Tool
 
 
 def state() -> PolicyPilotState:
@@ -35,9 +40,7 @@ def test_transaction_question_does_not_authorize_action_or_retarget_goal():
     )
 
     follow_up = "I have no account. Should I just go ahead and apply?"
-    plan = deterministic_semantic_plan(
-        value, follow_up, 1, classify_intent(follow_up)
-    )
+    plan = deterministic_semantic_plan(value, follow_up, 1, classify_intent(follow_up))
     merge_semantic_plan(value, plan, 1)
 
     assert value.intent != "TRANSACTIONAL"
@@ -254,6 +257,65 @@ def test_query_scoped_identity_is_not_rendered_into_query():
 
     assert "abc123def456" not in query
     assert "compare cashback rates" in query
+
+
+def test_global_retrieval_query_preserves_user_semantics_and_requirements():
+    value = state()
+    value.goal.objective = "Compare personal cards"
+    value.goal.target = "personal_card"
+    value.goal.criteria.extend(
+        [
+            GoalCriterion(
+                id="fee",
+                kind="CONSTRAINT",
+                aspect="annual_fee",
+                value="must have no annual fee",
+                hard=True,
+                source_turn=0,
+            ),
+            GoalCriterion(
+                id="cashback",
+                kind="OPTIMIZATION",
+                aspect="rewards",
+                value="maximize cash back",
+                source_turn=0,
+            ),
+        ]
+    )
+    value.messages.append(
+        UserMessage.text("I want a personal cash back card that works with Rho-Bank+.")
+    )
+
+    query = build_global_retrieval_query(value)
+
+    assert "Compare personal cards" in query
+    assert "must have no annual fee" in query
+    assert "maximize cash back" in query
+    assert "Rho-Bank+" in query
+
+
+def test_retrieval_call_adds_global_channel_when_backend_supports_it():
+    def KB_search(query: str, global_query: str | None = None) -> str:
+        """Search policies through Need and optional global query channels."""
+        return f"{query}:{global_query}"
+
+    value = state()
+    value.goal.objective = "Compare cards with no annual fee"
+    value.messages.append(UserMessage.text("I prefer cash back."))
+    need = InformationNeed(
+        id="fee",
+        entity="card",
+        aspect="annual_fee",
+        source="POLICY",
+        reason="missing fee policy",
+    )
+
+    call = build_retrieval_call(value, need, Tool(KB_search))
+
+    assert call.arguments["query"]
+    assert "Compare cards with no annual fee" in call.arguments["global_query"]
+    event = value.control.pending_retrieval_events[call.id]
+    assert event["retrieval_channels"] == ["need", "global_user"]
 
 
 def test_exhausted_policy_need_remains_visible_as_unresolved_gap():

@@ -86,7 +86,9 @@ class ConstraintPreservingQueryRewriter:
             )
         )
         phrases = [match.group(1).lower() for match in _QUOTED_RE.finditer(normalized)]
-        phrases.extend(match.group(0).lower() for match in _NEGATED_RE.finditer(normalized))
+        phrases.extend(
+            match.group(0).lower() for match in _NEGATED_RE.finditer(normalized)
+        )
         exact_phrases = tuple(dict.fromkeys(phrases))
         dense_query = f"Instruct: {_QUERY_INSTRUCTION}\nQuery:{normalized}"
         return RewrittenQuery(
@@ -116,6 +118,7 @@ class HybridSearchResponse:
     query: RewrittenQuery
     hits: tuple[HybridSearchHit, ...]
     timing_ms: dict[str, float] = field(default_factory=dict)
+    channel_queries: tuple[tuple[str, str], ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -154,6 +157,7 @@ class LocalHybridPolicyRetriever:
         reranker: PassageReranker | None = None,
         rerank_candidate_k: int = 20,
         model_rerank_weight: float = 0.35,
+        need_channel_weight: float = 0.65,
     ) -> None:
         if candidate_k < top_k:
             raise ValueError("candidate_k must be greater than or equal to top_k")
@@ -173,6 +177,9 @@ class LocalHybridPolicyRetriever:
         if not 0.0 <= model_rerank_weight <= 1.0:
             raise ValueError("model_rerank_weight must be between 0 and 1")
         self.model_rerank_weight = model_rerank_weight
+        if not 0.0 <= need_channel_weight <= 1.0:
+            raise ValueError("need_channel_weight must be between 0 and 1")
+        self.need_channel_weight = need_channel_weight
 
         self.chunks = load_chunks(chunks_path)
         self.embeddings: np.ndarray | None = None
@@ -376,8 +383,9 @@ class LocalHybridPolicyRetriever:
         hits.sort(key=lambda item: item.score, reverse=True)
         return tuple(hits[:top_k])
 
-    def search(self, query: str, top_k: int | None = None) -> HybridSearchResponse:
-        total_start = time.perf_counter()
+    def _retrieve_features(
+        self, query: str
+    ) -> tuple[RewrittenQuery, list[_ChunkScore], dict[str, float]]:
         rewrite_start = time.perf_counter()
         rewritten = self.rewriter.rewrite(query)
         rewrite_ms = (time.perf_counter() - rewrite_start) * 1000
@@ -416,24 +424,115 @@ class LocalHybridPolicyRetriever:
             sparse_rows,
         )
         feature_rerank_ms = (time.perf_counter() - feature_rerank_start) * 1000
-        model_rerank_start = time.perf_counter()
-        ranked = self._model_rerank(rewritten, ranked)
-        model_rerank_ms = (time.perf_counter() - model_rerank_start) * 1000
-        hits = self._aggregate_documents(ranked, top_k or self.top_k)
-        rerank_ms = feature_rerank_ms + model_rerank_ms
-        total_ms = (time.perf_counter() - total_start) * 1000
-        return HybridSearchResponse(
-            query=rewritten,
-            hits=hits,
-            timing_ms={
+        return (
+            rewritten,
+            ranked,
+            {
                 "rewrite": rewrite_ms,
                 "sparse": sparse_ms,
                 "dense": dense_ms,
                 "feature_rerank": feature_rerank_ms,
+            },
+        )
+
+    @staticmethod
+    def _fuse_channels(
+        channels: list[tuple[list[_ChunkScore], float]],
+    ) -> list[_ChunkScore]:
+        """Fuse ranked channel candidates without comparing raw rank positions alone."""
+
+        by_row: dict[int, list[tuple[_ChunkScore, float, int]]] = {}
+        for ranked, weight in channels:
+            for rank, item in enumerate(ranked, start=1):
+                by_row.setdefault(item.row, []).append((item, weight, rank))
+
+        fused: list[_ChunkScore] = []
+        for row, contributions in by_row.items():
+            weighted_feature = sum(
+                weight * max(0.0, item.fused_score) for item, weight, _ in contributions
+            )
+            weighted_rrf = sum(
+                weight / (60 + rank) for _, weight, rank in contributions
+            )
+            # 61 maps a rank-1 contribution close to one while retaining the
+            # cross-channel agreement bonus of reciprocal-rank fusion.
+            score = 0.72 * weighted_feature + 0.28 * min(1.0, weighted_rrf * 61)
+            total_weight = sum(weight for _, weight, _ in contributions) or 1.0
+            fused.append(
+                _ChunkScore(
+                    row=row,
+                    fused_score=score,
+                    dense_score=sum(
+                        item.dense_score * weight for item, weight, _ in contributions
+                    )
+                    / total_weight,
+                    sparse_score=sum(
+                        item.sparse_score * weight for item, weight, _ in contributions
+                    )
+                    / total_weight,
+                    anchor_coverage=max(
+                        item.anchor_coverage for item, _, _ in contributions
+                    ),
+                )
+            )
+        return sorted(fused, key=lambda item: item.fused_score, reverse=True)
+
+    def search(
+        self,
+        query: str,
+        top_k: int | None = None,
+        global_query: str | None = None,
+    ) -> HybridSearchResponse:
+        total_start = time.perf_counter()
+        rewritten, ranked, timing = self._retrieve_features(query)
+        channel_queries = [("need", rewritten.normalized)]
+
+        normalized_global = " ".join((global_query or "").split()).strip()
+        fusion_ms = 0.0
+        if (
+            normalized_global
+            and normalized_global.casefold() != rewritten.normalized.casefold()
+        ):
+            global_rewritten, global_ranked, global_timing = self._retrieve_features(
+                normalized_global
+            )
+            channel_queries.append(("global_user", global_rewritten.normalized))
+            fusion_start = time.perf_counter()
+            ranked = self._fuse_channels(
+                [
+                    (ranked, self.need_channel_weight),
+                    (global_ranked, 1.0 - self.need_channel_weight),
+                ]
+            )
+            fusion_ms = (time.perf_counter() - fusion_start) * 1000
+            for key in ("rewrite", "sparse", "dense", "feature_rerank"):
+                timing[key] += global_timing[key]
+            rerank_query = self.rewriter.rewrite(
+                f"{rewritten.normalized} {global_rewritten.normalized}"
+            )
+        else:
+            rerank_query = rewritten
+
+        model_rerank_start = time.perf_counter()
+        ranked = self._model_rerank(rerank_query, ranked)
+        model_rerank_ms = (time.perf_counter() - model_rerank_start) * 1000
+        hits = self._aggregate_documents(ranked, top_k or self.top_k)
+        rerank_ms = timing["feature_rerank"] + model_rerank_ms
+        total_ms = (time.perf_counter() - total_start) * 1000
+        timing.update(
+            {
                 "model_rerank": model_rerank_ms,
                 "rerank": rerank_ms,
                 "total": total_ms,
-            },
+            }
+        )
+        if len(channel_queries) > 1:
+            timing["fusion"] = fusion_ms
+        return HybridSearchResponse(
+            query=rewritten,
+            hits=hits,
+            timing_ms=timing,
+            channel_queries=tuple(channel_queries),
         )
 
 
@@ -456,7 +555,9 @@ def format_hybrid_search_response(response: HybridSearchResponse) -> str:
             f"   Content: {hit.content}\n"
         )
     timing = response.timing_ms
+    channels = ", ".join(name for name, _ in response.channel_queries) or "need"
     return "\n".join(formatted) + (
+        f"\n\n[Retrieval channels: {channels}]"
         f"\n\n[Timing: rewrite={timing['rewrite']:.0f}ms, "
         f"sparse={timing['sparse']:.0f}ms, dense={timing['dense']:.0f}ms, "
         f"retrieval={timing['sparse'] + timing['dense']:.0f}ms, "

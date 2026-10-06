@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from policypilot.errors import PolicyPilotErrorType
+from policypilot.retrieval import add_global_query_argument
 from policypilot.runtime.mutations import mutation_manager
 from policypilot.state import (
     InformationNeed,
@@ -116,10 +117,7 @@ def register_decision_fallback(
     if not candidates:
         return False
     control = state.control
-    if (
-        control.fallback_need_count
-        >= host.config.max_decision_fallback_need_attempts
-    ):
+    if control.fallback_need_count >= host.config.max_decision_fallback_need_attempts:
         control.recovery_failure_count += 1
         return False
     control.fallback_need_count += 1
@@ -219,6 +217,10 @@ def _bind_decision_retrieval(
     query = str((call.arguments or {}).get("query") or "").strip()
     if not query:
         return None
+    tool = host.guard.tools_by_name.get(call.name)
+    global_query = (
+        add_global_query_argument(state, call, tool) if tool is not None else None
+    )
     target = state.goal.target or "banking_product"
     aspect = canonicalize_aspect(query, entity=target, scope=target) or "product_terms"
     canonical_candidate = NeedCandidate(
@@ -233,11 +235,7 @@ def _bind_decision_retrieval(
     )
     semantic_key = host.need_registry.semantic_key(canonical_candidate, state)
     need = next(
-        (
-            item
-            for item in state.information_needs
-            if item.semantic_key == semantic_key
-        ),
+        (item for item in state.information_needs if item.semantic_key == semantic_key),
         None,
     )
     if need is None:
@@ -265,8 +263,7 @@ def _bind_decision_retrieval(
 
     binding = "canonical"
     if need is not None and (
-        need.retrieval_attempts
-        >= host.config.max_retrieval_attempts_per_semantic_need
+        need.retrieval_attempts >= host.config.max_retrieval_attempts_per_semantic_need
     ):
         # Prior broad coverage must not prevent a distinct corrective lookup.
         # Give the query its own bounded lifecycle while the task-wide budget
@@ -322,11 +319,7 @@ def _bind_decision_retrieval(
     need.query_terms = list(dict.fromkeys([*need.query_terms, query]))[-4:]
     need.updated_turn = len(state.messages)
     policy_acquisition = next(
-        (
-            item
-            for item in need.acquisitions
-            if item.source == "POLICY"
-        ),
+        (item for item in need.acquisitions if item.source == "POLICY"),
         None,
     )
     if policy_acquisition is not None:
@@ -335,27 +328,32 @@ def _bind_decision_retrieval(
         need.active_acquisition_id = policy_acquisition.id
         need.source = "POLICY"
     state.control.pending_retrieval_events[call.id] = {
-            "turn": len(state.messages),
-            "tool_call_id": call.id,
-            "need_id": need.id,
-            "semantic_need_key": need.semantic_key,
-            "entity": need.entity,
-            "aspect": need.aspect,
-            "aspect_provenance": need.aspect_provenance,
-            "scope": need.scope,
-            "source": "POLICY",
-            "status": "REQUESTED",
-            "attempt": need.retrieval_attempts + 1,
-            "attempt_committed": False,
-            "query": query,
-            "candidate_documents": [],
-            "coverage": None,
-            "matched_need_ids": [],
-            "partial_need_ids": [],
-            "why_again": "Decision identified insufficient policy evidence",
-            "origin": "decision",
-            "binding": binding,
-        }
+        "turn": len(state.messages),
+        "tool_call_id": call.id,
+        "need_id": need.id,
+        "semantic_need_key": need.semantic_key,
+        "entity": need.entity,
+        "aspect": need.aspect,
+        "aspect_provenance": need.aspect_provenance,
+        "scope": need.scope,
+        "source": "POLICY",
+        "status": "REQUESTED",
+        "attempt": need.retrieval_attempts + 1,
+        "attempt_committed": False,
+        "query": query,
+        "global_query": global_query,
+        "retrieval_channels": [
+            "need",
+            *(["global_user"] if global_query else []),
+        ],
+        "candidate_documents": [],
+        "coverage": None,
+        "matched_need_ids": [],
+        "partial_need_ids": [],
+        "why_again": "Decision identified insufficient policy evidence",
+        "origin": "decision",
+        "binding": binding,
+    }
     return need.id
 
 
@@ -375,12 +373,8 @@ def _is_repeated_decision_query(call: ToolCall, state: PolicyPilotState) -> bool
 def validate_proposal(
     host: ActionHost, message: AssistantMessage, state: PolicyPilotState
 ) -> ValidationResult:
-    if (
-        len(message.tool_calls or []) > 1
-        and all(
-            is_decision_retrieval_tool(call.name)
-            for call in message.tool_calls or []
-        )
+    if len(message.tool_calls or []) > 1 and all(
+        is_decision_retrieval_tool(call.name) for call in message.tool_calls or []
     ):
         # Keep Decision retrieval sequential so each new query can use the
         # evidence returned by the previous one and budgets remain predictable.
@@ -489,9 +483,7 @@ def validate_proposal(
         classification = host.guard.classify(call.name)
         signature = tool_signature(call.name, call.arguments)
         if classification == "mutation":
-            issue = mutation_manager.validate_duplicate(
-                state, signature=signature
-            )
+            issue = mutation_manager.validate_duplicate(state, signature=signature)
             if issue is not None:
                 control.duplicate_call_count += 1
                 return ValidationResult(
@@ -514,7 +506,10 @@ def validate_proposal(
             need.status in {"OPEN", "PARTIALLY_COVERED", "REOPENED"}
             and need.source == "TOOL"
             and need.capability == call.name
-            and all(call.arguments.get(key) == value for key, value in need.tool_arguments.items())
+            and all(
+                call.arguments.get(key) == value
+                for key, value in need.tool_arguments.items()
+            )
             for need in state.information_needs
         ):
             return ValidationResult(
@@ -618,11 +613,7 @@ def record_valid_tool_calls(
         control.signature_versions[signature] = control.observation_version
         control.tool_call_count += 1
         bound_need = next(
-            (
-                item
-                for item in state.information_needs
-                if item.id == bound_need_id
-            ),
+            (item for item in state.information_needs if item.id == bound_need_id),
             None,
         )
         if bound_need is not None and not is_knowledge_tool(call.name):
@@ -637,6 +628,8 @@ def record_valid_tool_calls(
                         "tool_call_id": call.id,
                         "need_id": event["need_id"],
                         "query": event["query"],
+                        "global_query": event.get("global_query"),
+                        "retrieval_channels": event.get("retrieval_channels", ["need"]),
                     }
                 )
                 if bound_need is not None:

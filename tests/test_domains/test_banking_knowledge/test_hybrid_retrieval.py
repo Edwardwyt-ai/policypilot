@@ -24,7 +24,10 @@ class _FakeReranker:
     def score(self, query, documents):
         assert query == "general card"
         return np.asarray(
-            [0.99 if "cash back" in document.lower() else 0.01 for document in documents],
+            [
+                0.99 if "cash back" in document.lower() else 0.01
+                for document in documents
+            ],
             dtype=np.float32,
         )
 
@@ -66,8 +69,7 @@ def _write_index(tmp_path):
     )
     np.save(index_dir / "embeddings.npy", vectors)
     metadata = [
-        {"row": index, "chunk_id": row["id"]}
-        for index, row in enumerate(chunks)
+        {"row": index, "chunk_id": row["id"]} for index, row in enumerate(chunks)
     ]
     (index_dir / "chunk_metadata.jsonl").write_text(
         "".join(json.dumps(row) + "\n" for row in metadata), encoding="utf-8"
@@ -96,9 +98,7 @@ def test_query_rewrite_preserves_negation_numbers_and_original_terms():
         rewritten.anchors
     )
     assert "no annual fee" in rewritten.exact_phrases
-    assert any(
-        phrase.startswith("at least 2") for phrase in rewritten.exact_phrases
-    )
+    assert any(phrase.startswith("at least 2") for phrase in rewritten.exact_phrases)
     assert rewritten.dense_query.endswith(f"Query:{rewritten.normalized}")
 
 
@@ -127,6 +127,31 @@ def test_hybrid_retrieval_reranks_constraint_covering_document(tmp_path):
         "rerank",
         "total",
     }
+
+
+def test_dual_channel_retrieval_fuses_need_and_global_user_queries(tmp_path):
+    chunks_path, index_dir = _write_index(tmp_path)
+    retriever = LocalHybridPolicyRetriever(
+        chunks_path=chunks_path,
+        index_dir=index_dir,
+        model="fake-model",
+        candidate_k=3,
+        top_k=2,
+        embedding_client=_FakeEmbeddingClient(),
+        need_channel_weight=0.5,
+    )
+
+    response = retriever.search(
+        "personal card application process",
+        global_query="savings account interest",
+    )
+
+    assert response.channel_queries == (
+        ("need", "personal card application process"),
+        ("global_user", "savings account interest"),
+    )
+    assert "fusion" in response.timing_ms
+    assert "doc_savings" in {hit.document_id for hit in response.hits}
 
 
 def test_model_reranker_can_override_feature_order(tmp_path):
