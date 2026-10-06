@@ -189,6 +189,44 @@ python scripts/evaluate_v1.py `
 Trajectories and evaluator results are written to
 `data/simulations/<run-name>/tasks/<task-id>/results.json`.
 
+## HTTP API
+
+The FastAPI delivery layer keeps the existing PolicyPilot agent and tau2 tool
+environment intact. It adds authenticated, user-owned conversations, idempotent
+message requests, server-sent events, and an explicit confirmation boundary
+before a mutation tool is executed.
+
+Configure a backend key in `.env`, then start the service:
+
+```powershell
+$env:POLICYPILOT_BACKEND_API_KEY = "replace-with-a-random-secret"
+$env:POLICYPILOT_AGENT_MODEL = "deepseek/deepseek-chat"
+$env:POLICYPILOT_RETRIEVAL_VARIANT = "local_hybrid"
+policypilot-api
+```
+
+The command verifies the local Ollama embedding runtime when `local_hybrid` is
+selected. OpenAPI documentation is available at `http://127.0.0.1:8080/docs`.
+Protected requests require both headers:
+
+```text
+Authorization: Bearer <POLICYPILOT_BACKEND_API_KEY>
+X-User-ID: <stable application user id>
+```
+
+The normal request sequence is:
+
+```text
+POST /v1/conversations
+POST /v1/conversations/{id}/messages
+POST /v1/conversations/{id}/actions/{action_id}/confirm  # only for writes
+GET  /v1/conversations/{id}/events
+```
+
+Conversation storage is currently process-local. Restarting the API clears
+active conversations; PolicyPilot's existing long-term memory store remains
+separate and persistent.
+
 ## Tests
 
 ```powershell

@@ -21,6 +21,46 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - FastAPI Delivery Layer V1
+
+- Date: 2026-10-06
+- Status: implemented and unit-verified
+- Parent: Unreleased - Local Runtime Preflight V1
+
+### Architecture And Behavior
+
+- Added an authenticated FastAPI application around the existing
+  `PolicyPilotAgent` and banking environment without changing the LangGraph,
+  tau2 tool-execution, or evaluator contracts.
+- Added user-owned conversations, idempotent message and action requests,
+  event streaming, liveness/readiness endpoints, and generated OpenAPI docs.
+- Read tools still execute through the tau2 environment. Mutation calls are
+  staged as `AWAITING_CONFIRMATION` and execute only after the API receives an
+  explicit confirmation; cancellation discards the staged action.
+- The `policypilot-api` entry point loads the repository `.env` and runs the
+  existing Ollama preflight before serving `local_hybrid` retrieval.
+
+### Compatibility
+
+- Laya remains disabled by default for API conversations. Memory remains bound
+  to the authenticated `X-User-ID` and does not replace live tool verification.
+- Conversation records and idempotency responses are process-local in V1, so a
+  server restart clears active conversations. Durable database and distributed
+  worker adapters remain future backend work.
+
+### Verification Evidence
+
+- Ruff passed for the API source, API tests, and project configuration.
+- API and runtime-preflight tests: `11 passed`.
+- Full non-integration PolicyPilot regression: `174 passed, 1 deselected`.
+- No paid model request or benchmark task was run.
+
+### Known Issues And Next Decision
+
+- Replace the in-memory conversation repository with a durable store before
+  multi-process deployment, and replace the shared backend key with the
+  application's production identity provider before exposing the service.
+
 ## Unreleased - Local Runtime Preflight V1
 
 - Date: 2026-10-02
