@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>PolicyPilot</title>
+    <link rel="stylesheet" href="/ui-assets/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="会话设置">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <div>
+            <strong>PolicyPilot</strong>
+            <span>Banking policy assistant</span>
+          </div>
+        </div>
+
+        <button class="new-chat" id="new-chat" type="button">
+          <span aria-hidden="true">＋</span>
+          新建会话
+        </button>
+
+        <section class="connection-panel" aria-labelledby="connection-title">
+          <div class="section-heading">
+            <h2 id="connection-title">连接</h2>
+            <span class="status-pill" id="connection-status" data-state="offline">未连接</span>
+          </div>
+
+          <label for="user-id">用户 ID</label>
+          <input id="user-id" name="user-id" type="text" maxlength="128" autocomplete="username" placeholder="例如 user-001">
+
+          <label for="api-key">API Key</label>
+          <div class="password-field">
+            <input id="api-key" name="api-key" type="password" autocomplete="current-password" placeholder="POLICYPILOT_BACKEND_API_KEY">
+            <button class="icon-button" id="toggle-key" type="button" aria-label="显示 API Key" title="显示 API Key">
+              <span aria-hidden="true">◉</span>
+            </button>
+          </div>
+
+          <button class="connect-button" id="connect" type="button">连接服务</button>
+          <p class="connection-detail" id="connection-detail">等待连接本地 API</p>
+        </section>
+
+        <nav class="sidebar-links" aria-label="开发链接">
+          <a href="/docs" target="_blank" rel="noreferrer">API 文档 <span aria-hidden="true">↗</span></a>
+          <a href="/health/ready" target="_blank" rel="noreferrer">服务状态 <span aria-hidden="true">↗</span></a>
+        </nav>
+      </aside>
+
+      <main class="chat-workspace">
+        <header class="topbar">
+          <div>
+            <h1>政策与账户助手</h1>
+            <p id="conversation-label">尚未创建会话</p>
+          </div>
+          <div class="runtime-status" id="runtime-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>待连接</span>
+          </div>
+        </header>
+
+        <div class="messages" id="messages" aria-live="polite">
+          <section class="empty-state" id="empty-state">
+            <div class="empty-symbol" aria-hidden="true">P</div>
+            <h2>直接描述你的银行业务问题</h2>
+            <p>PolicyPilot 会检索政策、核验账户信息，并在执行写操作前请求你的确认。</p>
+            <div class="prompt-list" aria-label="示例问题">
+              <button type="button" data-prompt="帮我比较没有年费、返现较高的个人信用卡。">比较信用卡政策</button>
+              <button type="button" data-prompt="我想了解一笔信用卡交易争议应该如何处理。">查询争议处理流程</button>
+              <button type="button" data-prompt="请帮我查看当前账户相关信息。">查询账户信息</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="pending-action" id="pending-action" hidden aria-labelledby="pending-title">
+          <div class="pending-heading">
+            <div>
+              <span class="pending-label">需要确认</span>
+              <h2 id="pending-title">待执行操作</h2>
+            </div>
+            <code id="pending-tool"></code>
+          </div>
+          <pre id="pending-arguments"></pre>
+          <div class="pending-controls">
+            <button class="secondary-button" id="cancel-action" type="button">取消</button>
+            <button class="danger-button" id="confirm-action" type="button">确认执行</button>
+          </div>
+        </section>
+
+        <footer class="composer-area">
+          <form class="composer" id="composer">
+            <textarea id="message-input" rows="1" maxlength="8000" placeholder="输入你的问题…" disabled></textarea>
+            <button class="send-button" id="send-message" type="submit" aria-label="发送消息" title="发送消息" disabled>
+              <span aria-hidden="true">↑</span>
+            </button>
+          </form>
+          <p class="composer-note" id="composer-note">连接服务后即可开始对话</p>
+        </footer>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script src="/ui-assets/app.js" defer></script>
+  </body>
+</html>

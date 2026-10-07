@@ -11,7 +11,8 @@ from typing import Any
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from policypilot.api.auth import ApiKeyAuthenticator, Identity
@@ -74,6 +75,13 @@ def create_app(
     )
     app.state.conversation_service = service
     app.state.runtime_factory = factory
+
+    static_dir = Path(__file__).with_name("static")
+    app.mount("/ui-assets", StaticFiles(directory=static_dir), name="ui-assets")
+
+    @app.get("/", include_in_schema=False)
+    async def chat_ui() -> FileResponse:
+        return FileResponse(static_dir / "ui.html")
 
     @app.exception_handler(ConversationNotFoundError)
     async def not_found_handler(_, __):

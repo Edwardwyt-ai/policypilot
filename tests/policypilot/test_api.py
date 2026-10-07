@@ -100,6 +100,22 @@ def test_health_and_authentication_boundary():
     )
 
 
+def test_chat_ui_and_static_assets_are_served_without_api_authentication():
+    client, _ = _client()
+
+    page = client.get("/")
+    script = client.get("/ui-assets/app.js")
+    stylesheet = client.get("/ui-assets/styles.css")
+
+    assert page.status_code == 200
+    assert "PolicyPilot" in page.text
+    assert "政策与账户助手" in page.text
+    assert script.status_code == 200
+    assert "sendMessage" in script.text
+    assert stylesheet.status_code == 200
+    assert ".chat-workspace" in stylesheet.text
+
+
 def test_conversations_are_owned_by_authenticated_user():
     client, _ = _client()
     conversation_id = _conversation(client, "owner")

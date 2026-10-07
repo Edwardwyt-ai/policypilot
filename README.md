@@ -206,7 +206,37 @@ policypilot-api
 ```
 
 The command verifies the local Ollama embedding runtime when `local_hybrid` is
-selected. OpenAPI documentation is available at `http://127.0.0.1:8080/docs`.
+selected. OpenAPI documentation is available to local developers through the
+service's `/docs` route.
+
+### Web Console Preview
+
+PolicyPilot also includes a lightweight browser console over the FastAPI
+delivery layer. It turns the structured HTTP endpoints into a conversational
+workflow without changing the underlying agent or tau2 execution semantics.
+
+The console is currently a feature preview and is not publicly hosted. No live
+endpoint, shared API key, or public demo credentials are distributed through
+this repository. The interface is documented here to show the intended product
+experience rather than to provide an online banking service.
+
+Its interaction flow is:
+
+1. A trusted local operator connects with a backend API key and a stable user
+   identity.
+2. The console creates an isolated conversation and accepts natural-language
+   banking questions.
+3. Agent responses show whether read tools were used while keeping internal
+   state and raw tool payloads out of the browser.
+4. When the agent proposes a mutation, the console displays the exact tool and
+   arguments and requires an explicit confirm or cancel action before execution.
+5. Starting a new conversation creates a fresh task state while long-term
+   memory remains isolated by user identity.
+
+The UI is responsive for desktop and narrow screens. Authentication,
+conversation ownership, request idempotency, and mutation confirmation remain
+enforced by the FastAPI backend rather than by browser-only controls.
+
 Protected requests require both headers:
 
 ```text
