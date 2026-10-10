@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from policypilot.api.auth import ApiKeyAuthenticator, Identity
+from policypilot.api.authorization import ToolAuthorizationError
 from policypilot.api.runtime import (
     BackendRuntimeSettings,
     DefaultRuntimeFactory,
@@ -39,17 +40,32 @@ from policypilot.api.service import (
 
 @dataclass(frozen=True)
 class BackendSettings:
-    api_key: str
+    api_key: str = field(repr=False)
+    user_id: str = "local-user"
+    user_tokens: dict[str, str] = field(default_factory=dict, repr=False)
     host: str = "127.0.0.1"
     port: int = 8080
 
     @classmethod
     def from_env(cls) -> "BackendSettings":
         api_key = os.getenv("POLICYPILOT_BACKEND_API_KEY", "")
-        if not api_key:
-            raise RuntimeError("Set POLICYPILOT_BACKEND_API_KEY before starting the API.")
+        user_id = os.getenv("POLICYPILOT_BACKEND_USER_ID", "")
+        user_tokens = json.loads(os.getenv("POLICYPILOT_BACKEND_USER_TOKENS", "{}"))
+        if not isinstance(user_tokens, dict) or any(
+            not isinstance(k, str) or not isinstance(v, str)
+            for k, v in user_tokens.items()
+        ):
+            raise ValueError(
+                "POLICYPILOT_BACKEND_USER_TOKENS must map tokens to user IDs."
+            )
+        if (api_key and not user_id) or (not api_key and not user_tokens):
+            raise RuntimeError(
+                "Configure user-bound credentials: BACKEND_API_KEY with BACKEND_USER_ID, or BACKEND_USER_TOKENS."
+            )
         return cls(
             api_key=api_key,
+            user_id=user_id,
+            user_tokens=user_tokens,
             host=os.getenv("POLICYPILOT_API_HOST", "127.0.0.1"),
             port=int(os.getenv("POLICYPILOT_API_PORT", "8080")),
         )
@@ -66,7 +82,10 @@ def create_app(
         BackendRuntimeSettings.from_env()
     )
     service = service or ConversationService(factory)
-    authenticator = ApiKeyAuthenticator(settings.api_key)
+    authenticator = ApiKeyAuthenticator(
+        settings.api_key, settings.user_id, settings.user_tokens
+    )
+    identity_dependency = authenticator.dependency
 
     app = FastAPI(
         title="PolicyPilot API",
@@ -99,7 +118,17 @@ def create_app(
     async def limit_handler(_, exc):
         return _json_error(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
 
-    identity_dependency = authenticator.dependency
+    @app.exception_handler(ToolAuthorizationError)
+    async def tool_access_handler(_, __):
+        return _json_error(
+            status.HTTP_403_FORBIDDEN, "Tool access denied for the authenticated user."
+        )
+
+    @app.get("/v1/me", tags=["identity"])
+    async def current_identity(
+        identity: Identity = Depends(identity_dependency),
+    ) -> dict[str, str]:
+        return {"user_id": identity.user_id}
 
     @app.get("/health/live", response_model=HealthResponse, tags=["health"])
     async def live() -> HealthResponse:
@@ -126,7 +155,9 @@ def create_app(
         request: CreateConversationRequest,
         identity: Identity = Depends(identity_dependency),
     ) -> ConversationView:
-        return await run_in_threadpool(service.create, identity.user_id, request.metadata)
+        return await run_in_threadpool(
+            service.create, identity.user_id, request.metadata
+        )
 
     @app.get(
         "/v1/conversations/{conversation_id}",

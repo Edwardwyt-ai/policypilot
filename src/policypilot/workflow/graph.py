@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal, Protocol, TypedDict, cast
 
 from langgraph.graph import END, START, StateGraph
 
 from policypilot.config import PolicyPilotConfig
+from policypilot.context_loading import (
+    LOAD_CONTEXT_TOOL,
+    ContextBudgetError,
+    ContextLoadRequest,
+    load_snapshot,
+)
 from policypilot.context_refs import RehydratedContext, hydrate_context_refs
 from policypilot.dependencies import dependency_snapshot
 from policypilot.errors import PolicyPilotErrorType
@@ -18,9 +25,13 @@ from policypilot.needs import (
 from policypilot.retrieval import build_retrieval_call
 from policypilot.runtime.actions import ValidationResult
 from policypilot.state import InformationNeed, PolicyPilotState
-from policypilot.workflow.context import AgentContext, build_agent_context
+from policypilot.workflow.context import (
+    AgentContext,
+    _estimated_size,
+    build_agent_context,
+)
 from tau2.agent.base_agent import ValidAgentInputMessage
-from tau2.data_model.message import AssistantMessage, Message, ToolCall
+from tau2.data_model.message import AssistantMessage, Message, ToolCall, ToolMessage
 from tau2.environment.tool import Tool
 
 
@@ -38,6 +49,11 @@ class PolicyPilotGraphState(TypedDict, total=False):
     recovery_exhausted: bool
     fallback_registered: bool
     node_trace: list[str]
+    context_request: AssistantMessage
+    context_exchanges: list[Any]
+    context_requests: list[dict]
+    context_loaded_chars: int
+    context_load_attempts: int
 
 
 class WorkflowHost(Protocol):
@@ -65,9 +81,7 @@ class WorkflowHost(Protocol):
         self, result: ValidationResult, state: PolicyPilotState
     ) -> bool: ...
     def _decision_tools(self, state: PolicyPilotState) -> list[Tool]: ...
-    def _decision_fallback_candidates(
-        self, message: AssistantMessage
-    ) -> list[Any]: ...
+    def _decision_fallback_candidates(self, message: AssistantMessage) -> list[Any]: ...
     def _register_decision_fallback(
         self, candidates: list[Any], state: PolicyPilotState
     ) -> bool: ...
@@ -121,7 +135,7 @@ class PolicyPilotWorkflow:
             "retrieve_policy",
             "read_tool",
             "unknown",
-            "hydrate_context",
+            "load_context",
             "build_context",
             "decision",
             "validate",
@@ -153,12 +167,12 @@ class PolicyPilotWorkflow:
                 "retrieve_policy": "retrieve_policy",
                 "read_tool": "read_tool",
                 "unknown": "unknown",
-                "decision": "hydrate_context",
+                "decision": "build_context",
             },
         )
         for name in ("ask_user", "retrieve_policy", "read_tool", "unknown"):
             graph.add_edge(name, "finalize")
-        graph.add_edge("hydrate_context", "build_context")
+        graph.add_edge("load_context", "decision")
         graph.add_edge("build_context", "decision")
         graph.add_conditional_edges(
             "decision",
@@ -167,6 +181,7 @@ class PolicyPilotWorkflow:
                 "finalize": "finalize",
                 "validate": "validate",
                 "route_need": "route_need",
+                "load_context": "load_context",
             },
         )
         graph.add_conditional_edges(
@@ -254,22 +269,24 @@ class PolicyPilotWorkflow:
     def route_need(self, gs):
         state = gs["policy_state"]
         need = select_next_blocking_need(state, self.host.config)
-        state.control.need_selection_events.append({
-            "turn": len(state.messages),
-            "selected_need_id": need.id if need else None,
-            "semantic_key": need.semantic_key if need else None,
-            "source": need.source if need else None,
-            "criticality": "CRITICAL" if need and need.critical else None,
-            "dependency": dependency_snapshot(need, state) if need else None,
-            "blocking_open_count": sum(
-                item.status == "OPEN" and item.blocking and not item.exhausted
-                for item in state.information_needs
-            ),
-            "optional_open_count": sum(
-                item.status == "OPEN" and not item.blocking
-                for item in state.information_needs
-            ),
-        })
+        state.control.need_selection_events.append(
+            {
+                "turn": len(state.messages),
+                "selected_need_id": need.id if need else None,
+                "semantic_key": need.semantic_key if need else None,
+                "source": need.source if need else None,
+                "criticality": "CRITICAL" if need and need.critical else None,
+                "dependency": dependency_snapshot(need, state) if need else None,
+                "blocking_open_count": sum(
+                    item.status == "OPEN" and item.blocking and not item.exhausted
+                    for item in state.information_needs
+                ),
+                "optional_open_count": sum(
+                    item.status == "OPEN" and not item.blocking
+                    for item in state.information_needs
+                ),
+            }
+        )
         return self.trace(gs, "route_need", active_need=need)
 
     def need_route(self, gs):
@@ -292,17 +309,19 @@ class PolicyPilotWorkflow:
             acquisition.status = "REQUESTED"
             acquisition.attempts += 1
         need.acquisition_count += 1
-        gs["policy_state"].control.acquisition_events.append({
-            "turn": len(gs["policy_state"].messages),
-            "tool_call_id": None,
-            "need_id": need.id,
-            "semantic_key": need.semantic_key,
-            "source": "USER",
-            "acquisition_type": "clarification",
-            "status": "REQUESTED",
-            "result": None,
-            "final_status": need.status,
-        })
+        gs["policy_state"].control.acquisition_events.append(
+            {
+                "turn": len(gs["policy_state"].messages),
+                "tool_call_id": None,
+                "need_id": need.id,
+                "semantic_key": need.semantic_key,
+                "source": "USER",
+                "acquisition_type": "clarification",
+                "status": "REQUESTED",
+                "result": None,
+                "final_status": need.status,
+            }
+        )
         text = (
             need.question
             or f"Please provide the missing {need.aspect.replace('_', ' ')}."
@@ -327,9 +346,7 @@ class PolicyPilotWorkflow:
         )
         error, _ = self.host._proposal_error(message, state)
         if error:
-            state.control.pending_retrieval_events.pop(
-                message.tool_calls[0].id, None
-            )
+            state.control.pending_retrieval_events.pop(message.tool_calls[0].id, None)
             return self.trace(
                 gs,
                 "retrieve_policy",
@@ -403,9 +420,7 @@ class PolicyPilotWorkflow:
                 "evidence_ids": result.evidence_ids,
                 "need_ids": result.need_ids,
                 "reference_count": len(result.references),
-                "content_chars": sum(
-                    len(item.content) for item in result.references
-                ),
+                "content_chars": sum(len(item.content) for item in result.references),
             }
         )
         return self.trace(
@@ -418,6 +433,14 @@ class PolicyPilotWorkflow:
     def build_context(self, gs):
         state = gs["policy_state"]
         rehydrated = gs.get("rehydrated_context", RehydratedContext())
+        try:
+            return self._build_context(gs, state, rehydrated)
+        except ContextBudgetError as exc:
+            return self.trace(
+                gs, "build_context", final_action=AssistantMessage.text(str(exc))
+            )
+
+    def _build_context(self, gs, state, rehydrated):
         context = build_agent_context(
             state,
             self.host._decision_tools(state),
@@ -442,8 +465,36 @@ class PolicyPilotWorkflow:
         )
 
     def decision(self, gs):
+        if gs.get("final_action"):
+            return self.trace(gs, "decision")
+        messages = [
+            *gs["constructed_context"].messages,
+            *gs.get("context_exchanges", []),
+        ]
+        maximum = min(
+            self.host.config.max_decision_context_chars,
+            self.host.config.max_decision_context_tokens * 4,
+        )
+        size = _estimated_size(messages, self.host._decision_tools(gs["policy_state"]))
+        state = gs["policy_state"]
+        state.control.context_message_count = len(messages)
+        state.control.context_estimated_size = size
+        if state.context_manifests:
+            state.context_manifests[-1].metadata.update(
+                estimated_chars=size,
+                explicit_loaded_chars=gs.get("context_loaded_chars", 0),
+                explicit_load_calls=gs.get("context_load_attempts", 0),
+            )
+        if size > maximum:
+            return self.trace(
+                gs,
+                "decision",
+                final_action=AssistantMessage.text(
+                    "Context loading exceeded the decision window."
+                ),
+            )
         result = self.host._call_llm(
-            gs["constructed_context"].messages,
+            messages,
             gs["policy_state"],
             "policypilot_decision",
         )
@@ -454,6 +505,10 @@ class PolicyPilotWorkflow:
                 final_action=AssistantMessage.text(
                     "I cannot safely continue because the model call failed."
                 ),
+            )
+        if any(call.name == LOAD_CONTEXT_TOOL for call in (result.tool_calls or [])):
+            return self.trace(
+                gs, "decision", context_request=result, fallback_registered=False
             )
         candidates = self.host._decision_fallback_candidates(result)
         if candidates:
@@ -469,7 +524,9 @@ class PolicyPilotWorkflow:
                     "I cannot safely continue because the information recovery budget was exhausted."
                 ),
             )
-        return self.trace(gs, "decision", proposed_action=result)
+        return self.trace(
+            gs, "decision", proposed_action=result, fallback_registered=False
+        )
 
     @staticmethod
     def after_decision(gs):
@@ -477,7 +534,78 @@ class PolicyPilotWorkflow:
             return "finalize"
         if gs.get("fallback_registered"):
             return "route_need"
+        if gs.get("context_request"):
+            return "load_context"
         return "validate"
+
+    def load_context(self, gs):
+        state = gs["policy_state"]
+        proposal = gs["context_request"]
+        attempts = gs.get("context_load_attempts", 0) + 1
+        if attempts > self.host.config.max_context_load_calls:
+            return self.trace(
+                gs,
+                "load_context",
+                context_request=None,
+                final_action=AssistantMessage.text("Context load budget exhausted."),
+            )
+        calls = list(proposal.tool_calls or [])
+        if len(calls) != 1 or calls[0].name != LOAD_CONTEXT_TOOL:
+            return self.trace(
+                gs,
+                "load_context",
+                context_request=None,
+                final_action=AssistantMessage.text(
+                    "Context loading must be requested separately from business actions."
+                ),
+            )
+        call = calls[0]
+        requests = list(gs.get("context_requests", []))
+        loaded = gs.get("context_loaded_chars", 0)
+        event = {
+            "turn": len(state.messages),
+            "requested": call.arguments,
+            "mode": "explicit",
+        }
+        try:
+            result = load_snapshot(
+                state,
+                call.arguments,
+                self.host.config,
+                previous_requests=requests,
+                loaded_chars=loaded,
+            )
+            loaded += len(result["content"])
+            requests.append(
+                ContextLoadRequest.model_validate(call.arguments).model_dump()
+            )
+            event.update(
+                status="LOADED",
+                content_chars=len(result["content"]),
+                payload_refs=[result["payload_ref"]],
+            )
+        except (ValueError, TypeError) as exc:
+            result = {"error": str(exc)}
+            event.update(status="DENIED", content_chars=0)
+        state.control.context_rehydration_events.append(event)
+        exchange = [
+            proposal,
+            ToolMessage(
+                role="tool",
+                id=call.id,
+                requestor="assistant",
+                content=json.dumps(result, ensure_ascii=False),
+            ),
+        ]
+        return self.trace(
+            gs,
+            "load_context",
+            context_request=None,
+            context_exchanges=[*gs.get("context_exchanges", []), *exchange],
+            context_requests=requests,
+            context_loaded_chars=loaded,
+            context_load_attempts=attempts,
+        )
 
     def validate(self, gs):
         proposal = gs["proposed_action"]

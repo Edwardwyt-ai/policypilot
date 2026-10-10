@@ -83,15 +83,16 @@ flowchart TD
     ROUTE -->|Policy evidence| POLICY["6. RETRIEVE POLICY<br/>Emit KB search call"]
     ROUTE -->|Live data| TOOL["7. READ TOOL<br/>Emit transactional read call"]
     ROUTE -->|Unknown| UNKNOWN["8. UNKNOWN<br/>Clarify or stop safely"]
-    ROUTE -->|Ready| HYDRATE["9. HYDRATE CONTEXT<br/>Load referenced evidence"]
+    ROUTE -->|Ready| CONTEXT["10. BUILD CONTEXT<br/>Archive only on overflow"]
 
     ASK --> FINAL
     POLICY --> FINAL
     TOOL --> FINAL
     UNKNOWN --> FINAL
 
-    HYDRATE --> CONTEXT["10. BUILD CONTEXT<br/>Assemble bounded context"]
     CONTEXT --> DECISION{"11. MAIN LLM DECISION<br/>Propose response or tool call"}
+    DECISION -->|Explicit reference request| LOAD["9. LOAD CONTEXT<br/>Read a bounded snapshot page"]
+    LOAD --> DECISION
 
     DECISION -->|Action| VALIDATE{"12. VALIDATE<br/>Apply deterministic guard"}
     DECISION -->|Fallback Need created| ROUTE
@@ -115,7 +116,7 @@ flowchart TD
     classDef terminal fill:#e1e1e1,stroke:#555555,stroke-width:2px,color:#111111;
 
     class START,INGEST entry;
-    class UPDATE,RECOVER,HYDRATE,CONTEXT state;
+    class UPDATE,RECOVER,LOAD,CONTEXT state;
     class ROUTE route;
     class ASK,POLICY,TOOL,UNKNOWN action;
     class DECISION llm;
@@ -136,6 +137,8 @@ Need creation is an internal capability rather than a standalone graph node:
 `retrieve_policy` and `read_tool` emit tool calls but do not execute them. The
 tau2 environment executes each call outside LangGraph, and the resulting
 `ToolMessage` enters the graph through `update_state` on the next turn.
+The internal `load_context` node is the exception: it only reads already
+observed task snapshots and never executes a banking tool.
 
 ## Main Components
 
@@ -200,6 +203,7 @@ Configure a backend key in `.env`, then start the service:
 
 ```powershell
 $env:POLICYPILOT_BACKEND_API_KEY = "replace-with-a-random-secret"
+$env:POLICYPILOT_BACKEND_USER_ID = "<existing banking user id>"
 $env:POLICYPILOT_AGENT_MODEL = "deepseek/deepseek-chat"
 $env:POLICYPILOT_RETRIEVAL_VARIANT = "local_hybrid"
 policypilot-api
@@ -222,8 +226,8 @@ experience rather than to provide an online banking service.
 
 Its interaction flow is:
 
-1. A trusted local operator connects with a backend API key and a stable user
-   identity.
+1. A trusted local operator connects with a backend API key. The server resolves
+   its bound user identity; the browser cannot choose another user ID.
 2. The console creates an isolated conversation and accepts natural-language
    banking questions.
 3. Agent responses show whether read tools were used while keeping internal
@@ -237,12 +241,30 @@ The UI is responsive for desktop and narrow screens. Authentication,
 conversation ownership, request idempotency, and mutation confirmation remain
 enforced by the FastAPI backend rather than by browser-only controls.
 
-Protected requests require both headers:
+Protected requests require a server-bound bearer credential:
 
 ```text
 Authorization: Bearer <POLICYPILOT_BACKEND_API_KEY>
-X-User-ID: <stable application user id>
 ```
+
+`GET /v1/me` returns the authenticated user ID. An optional legacy `X-User-ID`
+header must match that identity or the request is rejected. For multiple users,
+set `POLICYPILOT_BACKEND_USER_TOKENS` to a JSON object mapping separate random
+tokens to existing banking user IDs. Credentials are server-managed opaque
+tokens, not OAuth/OIDC or production bank authentication.
+
+The API checks tool argument schemas and current database ownership before any
+tool in a batch runs, including nested discoverable calls. Confirmation checks
+authorization again. Unknown resource-ID policies fail closed. This boundary
+applies to API conversations, not benchmark runtime or hidden evaluation data.
+
+Decision context keeps the complete dialogue while it fits configured character
+and estimated-token budgets (including tool schemas). On overflow it keeps pinned
+state, a bounded recent window, a summary and task-local snapshot references.
+The main model can explicitly call internal `load_context_ref` with a reference,
+offset and length. Pages remain untrusted historical data, not fresh banking
+facts. Loading is capped at three requests and 2,400 content characters per
+decision by default; original business tools still execute outside LangGraph.
 
 The normal request sequence is:
 

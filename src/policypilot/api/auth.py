@@ -16,10 +16,23 @@ class Identity:
 class ApiKeyAuthenticator:
     """Authenticate a trusted client and bind requests to one user id."""
 
-    def __init__(self, api_key: str):
-        if not api_key:
-            raise ValueError("POLICYPILOT_BACKEND_API_KEY must not be empty.")
-        self.api_key = api_key
+    def __init__(
+        self, api_key: str, user_id: str, user_tokens: dict[str, str] | None = None
+    ):
+        self.tokens = dict(user_tokens or {})
+        if api_key:
+            if not user_id:
+                raise ValueError(
+                    "A backend key must be bound to a server-configured user."
+                )
+            if api_key in self.tokens and self.tokens[api_key] != user_id:
+                raise ValueError("Conflicting identity binding for backend key.")
+            self.tokens[api_key] = user_id
+        if not self.tokens or any(
+            not token or not user or len(user) > 128
+            for token, user in self.tokens.items()
+        ):
+            raise ValueError("Configure nonempty user-bound backend credentials.")
 
     def dependency(
         self,
@@ -27,21 +40,20 @@ class ApiKeyAuthenticator:
         x_user_id: str | None = Header(default=None),
     ) -> Identity:
         scheme, _, supplied = (authorization or "").partition(" ")
-        valid = (
-            scheme.lower() == "bearer"
-            and bool(supplied)
-            and hmac.compare_digest(supplied, self.api_key)
-        )
-        if not valid:
+        user_id = None
+        if scheme.lower() == "bearer" and supplied:
+            for token, subject in self.tokens.items():
+                if hmac.compare_digest(supplied.encode(), token.encode()):
+                    user_id = subject
+        if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Missing or invalid bearer token.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        user_id = (x_user_id or "").strip()
-        if not user_id or len(user_id) > 128:
+        if x_user_id is not None and x_user_id.strip() != user_id:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="X-User-ID is required and must be at most 128 characters.",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User header does not match the authenticated identity.",
             )
         return Identity(user_id=user_id)

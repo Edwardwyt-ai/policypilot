@@ -44,11 +44,10 @@ function credentials() {
 }
 
 function headers() {
-  const { apiKey, userId } = credentials();
+  const { apiKey } = credentials();
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
-    "X-User-ID": userId,
   };
 }
 
@@ -77,6 +76,7 @@ function setRuntimeStatus(label, status) {
 
 function setBusy(busy, label = "正在处理") {
   state.busy = busy;
+  elements.apiKey.disabled = busy;
   elements.connect.disabled = busy;
   elements.newChat.disabled = busy || !state.connected;
   elements.input.disabled = busy || !state.connected || Boolean(state.pendingAction);
@@ -102,14 +102,15 @@ function setConnection(status, detail, stateName) {
 }
 
 function saveCredentials() {
-  const { apiKey, userId } = credentials();
+  const { apiKey } = credentials();
   sessionStorage.setItem("policypilot.apiKey", apiKey);
-  sessionStorage.setItem("policypilot.userId", userId);
+  sessionStorage.removeItem("policypilot.userId");
 }
 
 function restoreCredentials() {
   elements.apiKey.value = sessionStorage.getItem("policypilot.apiKey") || "";
-  elements.userId.value = sessionStorage.getItem("policypilot.userId") || "";
+  elements.userId.value = "";
+  elements.userId.readOnly = true;
 }
 
 function resetConversation() {
@@ -133,14 +134,16 @@ async function createConversation() {
 }
 
 async function connect() {
-  const { apiKey, userId } = credentials();
-  if (!apiKey || !userId) {
-    showToast("请输入用户 ID 和 API Key。");
+  const { apiKey } = credentials();
+  if (!apiKey) {
+    showToast("请输入 API Key。");
     return;
   }
   setBusy(true, "正在连接");
   try {
     saveCredentials();
+    const identity = await api("/v1/me");
+    elements.userId.value = identity.user_id;
     const ready = await fetch("/health/ready").then((response) => {
       if (!response.ok) throw new Error("服务尚未就绪");
       return response.json();

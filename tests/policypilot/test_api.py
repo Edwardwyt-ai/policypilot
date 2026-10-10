@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from policypilot.api.app import BackendSettings, create_app
+from policypilot.api.authorization import ToolAuthorizationError
 from policypilot.api.runtime import RuntimeTurn, TauConversationRuntime
 from policypilot.api.schemas import PendingActionView, utc_now
 from tau2.data_model.message import (
@@ -63,13 +65,22 @@ class FakeRuntimeFactory:
 
 
 def _headers(user_id: str = "user-1") -> dict[str, str]:
-    return {"Authorization": f"Bearer {API_KEY}", "X-User-ID": user_id}
+    token = API_KEY if user_id == "user-1" else f"test-key-{user_id}"
+    return {"Authorization": f"Bearer {token}", "X-User-ID": user_id}
 
 
 def _client() -> tuple[TestClient, FakeRuntimeFactory]:
     factory = FakeRuntimeFactory()
     app = create_app(
-        settings=BackendSettings(api_key=API_KEY), runtime_factory=factory
+        settings=BackendSettings(
+            api_key=API_KEY,
+            user_id="user-1",
+            user_tokens={
+                "test-key-owner": "owner",
+                "test-key-other-user": "other-user",
+            },
+        ),
+        runtime_factory=factory,
     )
     return TestClient(app), factory
 
@@ -96,7 +107,19 @@ def test_health_and_authentication_boundary():
             headers={"Authorization": f"Bearer {API_KEY}"},
             json={},
         ).status_code
-        == 400
+        == 201
+    )
+    assert client.get("/v1/me", headers=_headers()).json() == {"user_id": "user-1"}
+    assert (
+        client.post(
+            "/v1/conversations",
+            headers={
+                "Authorization": f"Bearer {API_KEY}",
+                "X-User-ID": "victim",
+            },
+            json={},
+        ).status_code
+        == 403
     )
 
 
@@ -274,3 +297,45 @@ def test_tau_runtime_executes_reads_but_stages_mutations():
     assert environment.calls == ["read_tool", "write_tool"]
     assert completed.assistant_message == "done"
     assert runtime.state.steps == 4
+
+
+def test_runtime_denies_entire_batch_before_any_execution():
+    class BatchAgent(DummyAgent):
+        @staticmethod
+        def generate_next_message(message, state):
+            return AssistantMessage.text(
+                "",
+                tool_calls=[
+                    ToolCall(id="own", name="read_tool", arguments={}),
+                    ToolCall(id="foreign", name="read_tool", arguments={}),
+                ],
+            ), state
+
+    class Authorizer:
+        def authorize(self, call):
+            if call.id == "foreign":
+                raise ToolAuthorizationError("foreign resource")
+
+    environment = DummyEnvironment([])
+    runtime = TauConversationRuntime(BatchAgent(), environment, authorizer=Authorizer())
+    with pytest.raises(ToolAuthorizationError):
+        runtime.send("read")
+    assert not environment.calls
+
+
+def test_confirmation_rechecks_authorization_and_retains_pending_on_denial():
+    class Authorizer:
+        allowed = True
+
+        def authorize(self, call):
+            if not self.allowed:
+                raise ToolAuthorizationError("ownership changed")
+
+    environment, authorizer = DummyEnvironment([]), Authorizer()
+    runtime = TauConversationRuntime(DummyAgent(), environment, authorizer=authorizer)
+    turn = runtime.send("write")
+    authorizer.allowed = False
+    with pytest.raises(ToolAuthorizationError):
+        runtime.confirm(turn.pending_action.action_id)
+    assert not environment.calls
+    assert runtime.pending_action == turn.pending_action

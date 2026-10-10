@@ -53,6 +53,7 @@ class PolicyPilotConfig:
     max_rehydrated_refs: int = 2
     max_rehydrated_ref_chars: int = 1200
     max_rehydrated_context_chars: int = 2400
+    max_context_load_calls: int = 3
     memory_enabled: bool = True
     memory_dir: str = "data/policypilot_memory"
     memory_model: str | None = None

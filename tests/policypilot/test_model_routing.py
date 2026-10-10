@@ -15,6 +15,7 @@ from tau2.data_model.message import (
     SystemMessage,
     ToolCall,
     ToolMessage,
+    UserMessage,
 )
 from tau2.data_model.simulation import (
     DBCheck,
@@ -73,7 +74,9 @@ def test_structured_runtime_repairs_once_and_records_metrics():
         structured_repair_attempts=1,
     )
     result = runtime.call_structured(
-        "skill_matcher", [SystemMessage(role="system", content="select")], SkillSelection
+        "skill_matcher",
+        [SystemMessage(role="system", content="select")],
+        SkillSelection,
     )
 
     assert result.skill_ids == ["known"]
@@ -104,9 +107,7 @@ class StaticRuntime:
 
 
 def test_semantic_planner_uses_compact_user_semantics_only():
-    runtime = StaticRuntime(
-        SemanticPlan(intent="INFORMATIONAL", model_route="LIGHT")
-    )
+    runtime = StaticRuntime(SemanticPlan(intent="INFORMATIONAL", model_route="LIGHT"))
     planner = LLMSemanticPlanner(runtime)
     state = PolicyPilotState(
         system_messages=[SystemMessage(role="system", content="system")],
@@ -163,14 +164,19 @@ def test_context_compressor_runs_only_over_budget(tools):
     )
     assert runtime.messages is None
 
+    state.messages.insert(0, UserMessage.text("Earlier dialogue " * 2000))
+    state.messages.append(UserMessage.text("What is the status?"))
+
     compressed = build_agent_context(
         state,
         tools,
-        PolicyPilotConfig(max_decision_context_chars=100),
+        PolicyPilotConfig(max_decision_context_chars=10000),
         compressor=compressor,
     )
     assert runtime.messages is not None
-    assert "payload_ref" in " ".join(message.content or "" for message in compressed.messages)
+    assert "payload_ref" in " ".join(
+        message.content or "" for message in compressed.messages
+    )
 
 
 def test_evaluation_uses_per_node_metrics_for_hidden_auxiliary_calls(tmp_path):
@@ -216,7 +222,9 @@ def test_evaluation_uses_per_node_metrics_for_hidden_auxiliary_calls(tmp_path):
         duration=1.0,
         termination_reason=TerminationReason.USER_STOP,
         messages=[assistant],
-        reward_info=RewardInfo(reward=1.0, db_check=DBCheck(db_match=True, db_reward=1.0)),
+        reward_info=RewardInfo(
+            reward=1.0, db_check=DBCheck(db_match=True, db_reward=1.0)
+        ),
     )
 
     record = task_record_from_simulation(simulation, tmp_path / "result.json")
@@ -239,9 +247,7 @@ def test_deepseek_thinking_history_preserves_reasoning_content():
             )
         ],
         raw_data={
-            "choices": [
-                {"message": {"reasoning_content": "Need authoritative terms."}}
-            ]
+            "choices": [{"message": {"reasoning_content": "Need authoritative terms."}}]
         },
     )
     deterministic = AssistantMessage(

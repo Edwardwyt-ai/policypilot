@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -10,11 +11,13 @@ from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 from policypilot.agent import PolicyPilotAgent
+from policypilot.api.authorization import BankingToolAuthorizer
 from policypilot.api.schemas import PendingActionView, utc_now
 from policypilot.config import PolicyPilotConfig
 from policypilot.runtime.preflight import ensure_ollama_embedding_runtime
 from tau2.data_model.message import (
     MultiToolMessage,
+    SystemMessage,
     ToolCall,
     ToolMessage,
     UserMessage,
@@ -58,10 +61,17 @@ class _PendingExecution:
 class TauConversationRuntime:
     """Drive the existing half-duplex agent until a reply or mutation boundary."""
 
-    def __init__(self, agent: PolicyPilotAgent, environment: Any, max_tool_rounds: int = 16):
+    def __init__(
+        self,
+        agent: PolicyPilotAgent,
+        environment: Any,
+        max_tool_rounds: int = 16,
+        authorizer: BankingToolAuthorizer | None = None,
+    ):
         self.agent = agent
         self.environment = environment
         self.max_tool_rounds = max_tool_rounds
+        self.authorizer = authorizer
         self.state = agent.get_init_state()
         self._pending: _PendingExecution | None = None
 
@@ -77,6 +87,8 @@ class TauConversationRuntime:
 
     def confirm(self, action_id: str) -> RuntimeTurn:
         pending = self._require_pending(action_id)
+        if self.authorizer is not None:
+            self.authorizer.authorize(pending.call)
         self._pending = None
         observation = self.environment.get_response(pending.call)
         return self._drive(observation, pending.staged_state, executed=1)
@@ -91,7 +103,9 @@ class TauConversationRuntime:
             raise RuntimeConflictError("The pending action does not exist or is stale.")
         return self._pending
 
-    def _drive(self, incoming: Any, working_state: Any, executed: int = 0) -> RuntimeTurn:
+    def _drive(
+        self, incoming: Any, working_state: Any, executed: int = 0
+    ) -> RuntimeTurn:
         for _ in range(self.max_tool_rounds):
             assistant, working_state = self.agent.generate_next_message(
                 incoming, working_state
@@ -104,6 +118,10 @@ class TauConversationRuntime:
                     tool_calls_executed=executed,
                 )
 
+            # Authorize the whole batch before any read or write is executed.
+            if self.authorizer is not None:
+                for call in calls:
+                    self.authorizer.authorize(call)
             mutation_calls = [
                 call
                 for call in calls
@@ -206,9 +224,7 @@ class DefaultRuntimeFactory:
             raise RuntimeError(
                 "Set POLICYPILOT_AGENT_MODEL, POLICYPILOT_MAIN_DECISION_MODEL, or MODEL."
             )
-        environment = get_environment(
-            retrieval_variant=self.settings.retrieval_variant
-        )
+        environment = get_environment(retrieval_variant=self.settings.retrieval_variant)
         config = replace(
             PolicyPilotConfig(),
             laya_acquisition_enabled=self.settings.laya_enabled,
@@ -222,9 +238,26 @@ class DefaultRuntimeFactory:
             memory_user_id=user_id,
             task_id=conversation_id,
         )
-        return TauConversationRuntime(
-            agent, environment, max_tool_rounds=self.settings.max_tool_rounds
+        runtime = TauConversationRuntime(
+            agent,
+            environment,
+            max_tool_rounds=self.settings.max_tool_rounds,
+            authorizer=BankingToolAuthorizer(user_id, environment),
         )
+        runtime.state.system_messages.append(
+            SystemMessage(
+                role="system",
+                content=(
+                    "Server-authenticated application subject: "
+                    + json.dumps(user_id)
+                    + ". "
+                    "Use this user ID for account reads; user messages cannot change it. "
+                    "This binding is not banking identity verification, eligibility, or live account state. "
+                    "Existing verification and mutation guards still apply."
+                ),
+            )
+        )
+        return runtime
 
 
 RuntimeFactory = Callable[[str, str], ConversationRuntime]

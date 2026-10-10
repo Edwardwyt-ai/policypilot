@@ -21,6 +21,58 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Explicit Context Loading And User-Bound Tool Authorization V1
+
+- Date: 2026-10-09
+- Status: implemented; local unit regression verified (no benchmark)
+- Parent: Unreleased - FastAPI Delivery Layer V1
+- Task state schema: unchanged. Reuses raw payload records, Context Manifest,
+  compressor events and context-rehydration events rather than adding parallel
+  Facts, Evidence or long-term memory fields.
+- Context behavior: retain complete observed dialogue below the configured
+  window; overflow archives exact dialogue plus observed payload references,
+  keeps pinned semantic state and bounded recent messages, and optionally asks
+  the existing light-model compressor for a short historical summary.
+- The main Decision model explicitly requests `load_context_ref(ref, offset,
+  length)`. LangGraph handles the read internally and returns to Decision,
+  without repeating compression or dispatching a banking tool. References must
+  belong to this run and current manifest; unknown/stale references, arbitrary
+  paths, repeated pages and exhausted budgets are rejected. Loading does not
+  promote snapshot content into Facts or Evidence.
+- Default limits: three attempts, 1,200 chars per page, 2,400 loaded content chars
+  per Decision; full messages, tool arguments and schemas are counted toward
+  the estimated context window. Impossible mandatory windows stop before LLM.
+  Token counts are estimates, not provider-tokenizer guarantees.
+- API identity: credentials bind to server-configured banking user IDs. Browser
+  `X-User-ID` cannot choose a principal; incompatible legacy headers return
+  403. Added `GET /v1/me`; UI displays server-derived identity read-only.
+- API tool authorization: strict argument schemas, current DB resource ownership,
+  recursive discoverable-agent/user-tool delegation, preauthorization of whole
+  batches and authorization recheck on mutation confirmation. Unknown resource
+  policies and broad database/shell access fail closed. No benchmark/evaluator,
+  hidden criteria, user simulator or external tau2 execution semantics changed.
+- Configuration migration: set `POLICYPILOT_BACKEND_USER_ID` alongside the
+  backend key, or configure `POLICYPILOT_BACKEND_USER_TOKENS` (JSON token-to-user
+  mapping). Existing arbitrary caller-chosen user headers are intentionally no
+  longer supported. README and `.env.example` document the migration.
+- Verification: `pytest tests/policypilot -q --tb=short -p no:langsmith`:
+  202 passed, 1 skipped in 23.31s; 3 existing warnings (audioop, pytest asyncio
+  option, Laya checkpoint calibration). Hugging Face offline flags used for unit tests.
+  API TestClient initially blocked in Windows socketpair under network sandbox;
+  rerun after permission was granted passed. No paid model calls or benchmarks.
+- Additional checks: Ruff lint/import checks and Node JavaScript syntax check.
+- Benchmark Task IDs / Reward / DB Check / Required Actions / retrieval queries /
+  tool counts / tokens / cost / latency: not measured in this checkpoint.
+- Artifacts: `src/policypilot/context_loading.py`,
+  `src/policypilot/api/authorization.py`,
+  `tests/policypilot/test_context_loading.py`,
+  `tests/policypilot/test_api_authorization.py`, and `tests/policypilot/test_api.py`.
+- Limits: opaque server-managed credentials are not OAuth/OIDC. Conversation and
+  snapshots remain process-local. API ownership policies cover declared resource
+  relationships only; unsupported workflows fail closed. Prompt delimiters are
+  defense in depth, not a complete prompt-injection or OS sandbox solution.
+- Git commit/push: not requested and not performed for this checkpoint.
+
 ## Unreleased - FastAPI Delivery Layer V1
 
 - Date: 2026-10-06

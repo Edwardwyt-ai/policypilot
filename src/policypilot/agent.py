@@ -11,6 +11,7 @@ from policypilot.acquisition import AcquisitionPlanner, build_laya_backend
 from policypilot.checkpoint import JsonCheckpointStore
 from policypilot.compression import ToolContextCompressor
 from policypilot.config import PolicyPilotConfig
+from policypilot.context_loading import context_tool
 from policypilot.coverage import EvidenceResolver
 from policypilot.coverage_manager import LightweightCoverageManager
 from policypilot.errors import PolicyPilotErrorType
@@ -392,7 +393,16 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
         return recover_validation_failure(self, result, state)
 
     def _decision_tools(self, state: PolicyPilotState) -> list[Tool]:
-        return self.tool_exposure.for_decision(state)
+        tools = self.tool_exposure.for_decision(state)
+        if (
+            self.config.context_rehydration_enabled
+            and state.context_manifests
+            and state.context_manifests[-1].run_id == state.run_id
+            and state.context_manifests[-1].turn_id == len(state.messages)
+            and state.context_manifests[-1].metadata.get("loadable_refs")
+        ):
+            tools = [*tools, context_tool()]
+        return tools
 
     @staticmethod
     def _decision_fallback_candidates(message: AssistantMessage):
