@@ -21,6 +21,38 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Open User Simulation Environment V1
+
+- Date: 2026-10-16. Parent: existing API Runtime / service storage / HNSW work.
+- Added simulation/users.py and rollout.py plus scripts/simulate_users.py.
+  Seeded initialization samples actual synthetic users and private objective,
+  preferences, style, disclosure and consent policy without loading task gold.
+  Saved scenarios and DB snapshots can be supplied explicitly for reuse.
+- Default CLI mode initializes only; paid user/Agent calls require --run and
+  --user-model. Rollouts reuse TauConversationRuntime, authorization and pending
+  confirmation semantics, with isolated DB copies and Memory/Laya disabled.
+  No changes to Agent architecture, tau runtime or hidden evaluator criteria.
+- Private artifacts retain initial/per-turn/final snapshots, dialogue, simulator
+  usage/cost and runtime traces. Unknown cost remains null; user stopping does
+  not imply success. Invalid simulator output/provider errors/runtime errors and
+  turn exhaustion have distinct statuses. No Judge or business score added.
+- Verification: focused simulation/API tests 33 passed. PolicyPilot regression
+  with POLICYPILOT_STORAGE_BACKEND=json in the test child process: 234 passed,
+  1 skipped, 2 environment warnings. Ruff passed. Test-only backend selection
+  does not edit deployment config or introduce an automatic fallback.
+- Unmodified active storage configuration blocks regression at PostgreSQL
+  connection timeout (55 passed, 1 skipped before first failure). Windows
+  loopback permissions also required a rerun; neither is Agent quality evidence.
+- Initialization artifact: data/simulations/user_init_seed42_20261016. CLI help
+  checked. No paid rollout or benchmark; Reward/DB Check/Required Actions and
+  task-level retrieval/tokens/cost/latency comparisons are not measured.
+- Limits: starter scenario coverage only; semantic simulator fidelity and consent
+  require later independent review. Direct Runtime harness, not an HTTP load test.
+  User profiles/artifacts are private synthetic data, not sanitized exports.
+- Tests disable pytest cache and use data/storage TemporaryDirectory. Three
+  interrupted-run directories remained; their cleanup was denied by tool policy.
+  No commit or push. Usage: docs/policypilot/USER_SIMULATION.md.
+
 ## Unreleased - Explicit Context Loading And User-Bound Tool Authorization V1
 
 - Date: 2026-10-09

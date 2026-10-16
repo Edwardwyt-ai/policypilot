@@ -192,6 +192,10 @@ python scripts/evaluate_v1.py `
 Trajectories and evaluator results are written to
 `data/simulations/<run-name>/tasks/<task-id>/results.json`.
 
+Task-independent customer initialization and opt-in conversational rollouts are
+documented in [Open User Simulation](docs/policypilot/USER_SIMULATION.md).
+Initialization makes no model calls; actual rollouts require explicit `--run`.
+
 ## HTTP API
 
 The FastAPI delivery layer keeps the existing PolicyPilot agent and tau2 tool

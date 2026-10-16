@@ -14,7 +14,9 @@ from policypilot.agent import PolicyPilotAgent
 from policypilot.api.authorization import BankingToolAuthorizer
 from policypilot.api.schemas import PendingActionView, utc_now
 from policypilot.config import PolicyPilotConfig
+from policypilot.llm_runtime import LLMCallTrace
 from policypilot.runtime.preflight import ensure_ollama_embedding_runtime
+from policypilot.state import PolicyPilotState
 from tau2.data_model.message import (
     MultiToolMessage,
     SystemMessage,
@@ -78,6 +80,48 @@ class TauConversationRuntime:
     @property
     def pending_action(self) -> PendingActionView | None:
         return self._pending.view if self._pending is not None else None
+
+    def export_snapshot(self) -> dict:
+        """Persist state and simulated environment together, without pickling code."""
+        pending = self._pending
+        return {
+            "schema_version": 1,
+            "state": self.state.model_dump(mode="json"),
+            "environment_db": self.environment.tools.db.model_dump(mode="json"),
+            "llm_traces": self.agent.llm_runtime.snapshot(),
+            "pending": {
+                "view": pending.view.model_dump(mode="json"),
+                "call": pending.call.model_dump(mode="json"),
+                "state": pending.staged_state.model_dump(mode="json"),
+            }
+            if pending
+            else None,
+        }
+
+    def restore_snapshot(self, snapshot: dict) -> None:
+        """Restore toolkits against the same transactional DB instance."""
+        if snapshot.get("schema_version") != 1:
+            raise ValueError("Unsupported conversation snapshot")
+        self.state = PolicyPilotState.model_validate(snapshot["state"])
+        self.agent.llm_runtime.traces = [
+            LLMCallTrace.model_validate(value)
+            for value in snapshot.get("llm_traces", [])
+        ]
+        db = type(self.environment.tools.db).model_validate(snapshot["environment_db"])
+        self.environment.tools.db = db
+        if self.environment.user_tools is not None:
+            self.environment.user_tools.db = db
+        self.environment.sync_tools()
+        pending = snapshot.get("pending")
+        self._pending = (
+            _PendingExecution(
+                PendingActionView.model_validate(pending["view"]),
+                ToolCall.model_validate(pending["call"]),
+                PolicyPilotState.model_validate(pending["state"]),
+            )
+            if pending
+            else None
+        )
 
     def send(self, content: str) -> RuntimeTurn:
         if self._pending is not None:
