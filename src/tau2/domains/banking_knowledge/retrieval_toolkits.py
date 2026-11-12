@@ -14,6 +14,8 @@ MRO example for ``KnowledgeToolsWithKBSearchAndGrep``::
       └─ GrepMixin               → grep
 """
 
+import hashlib
+import json
 from typing import TYPE_CHECKING
 
 from tau2.domains.banking_knowledge.retrieval_mixins import (
@@ -25,6 +27,8 @@ from tau2.domains.banking_knowledge.retrieval_mixins import (
     ShellMixin,
 )
 from tau2.domains.banking_knowledge.tools import KnowledgeTools
+from tau2.domains.banking_knowledge.vectorization import sha256_file
+from tau2.knowledge.cache_backend import configured_text_cache
 
 if TYPE_CHECKING:
     from tau2.domains.banking_knowledge.data_model import TransactionalDB
@@ -65,6 +69,32 @@ class KnowledgeToolsWithLocalHybridSearch(LocalHybridSearchMixin, KnowledgeTools
     ):
         super().__init__(db)
         self._hybrid_retriever = hybrid_retriever
+        self._response_cache = configured_text_cache()
+        if self._response_cache is not None:
+            retriever = hybrid_retriever
+            version = {
+                "pipeline": "need-global-fusion-hnsw-v2",
+                "chunks": sha256_file(retriever.chunks_path),
+                "manifest": sha256_file(retriever.index_dir / "manifest.json"),
+                "parameters": {
+                    key: getattr(retriever, key)
+                    for key in (
+                        "candidate_k",
+                        "top_k",
+                        "chunks_per_document",
+                        "rerank_candidate_k",
+                        "model_rerank_weight",
+                        "need_channel_weight",
+                    )
+                },
+                "reranker": {
+                    key: str(getattr(retriever.reranker, key, None))
+                    for key in ("model_path", "instruction", "max_length")
+                },
+            }
+            self._response_cache_version = hashlib.sha256(
+                json.dumps(version, sort_keys=True).encode()
+            ).hexdigest()
 
 
 class KnowledgeToolsWithGrep(GrepMixin, KnowledgeTools):

@@ -84,3 +84,4 @@ class PolicyPilotConfig:
     agent_version: str = "policypilot-v1"
     prompt_version: str = "decision-v2"
     checkpoint_dir: str = "data/policypilot_checkpoints"
+    storage_backend: str = "json"

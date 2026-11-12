@@ -9,6 +9,11 @@ the required attributes (e.g., _kb_pipeline, _grep_pipeline, _sandbox)
 during its own __init__.
 """
 
+import hashlib
+import json
+import re
+import time
+
 from tau2.domains.banking_knowledge.hybrid_retrieval import (
     format_hybrid_search_response,
 )
@@ -91,9 +96,26 @@ class LocalHybridSearchMixin(metaclass=ToolKitType):
         Returns:
             Reranked source documents with the most relevant policy excerpts.
         """
-        return format_hybrid_search_response(
+        cache = getattr(self, "_response_cache", None)
+        started = time.monotonic()
+        key = None
+        if cache is not None:
+            key = hashlib.sha256(
+                json.dumps([self._response_cache_version, query, global_query]).encode()
+            ).hexdigest()
+            cached = cache.get(key)
+            if isinstance(cached, str):
+                body = re.sub(r"\n*\[Timing:[^\]]*\]", "", cached)
+                return (
+                    body
+                    + f"\n\n[Timing: cache=hit, total={(time.monotonic() - started) * 1000:.0f}ms]"
+                )
+        response = format_hybrid_search_response(
             self._hybrid_retriever.search(query, global_query=global_query)
         )
+        if cache is not None and key is not None:
+            cache.set(key, response)
+        return response
 
 
 class GrepMixin(metaclass=ToolKitType):

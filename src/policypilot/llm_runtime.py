@@ -20,6 +20,7 @@ from tau2.data_model.message import (
 )
 from tau2.environment.tool import Tool
 from tau2.utils.llm_utils import generate
+from tau2.utils.telemetry import observe
 
 LLMNode = Literal[
     "semantic_planner",
@@ -107,10 +108,49 @@ class LLMRuntime:
         extra_args: dict[str, Any] | None = None,
         retry_count: int = 0,
     ) -> AssistantMessage:
+        with observe(
+            "llm." + node,
+            "generation",
+            model=self.routing.model_for(node),
+            metadata={"node": node, "run_id": self.run_id, "retry_count": retry_count},
+        ) as span:
+            response = self._call_message(
+                node,
+                messages,
+                tools=tools,
+                call_name=call_name,
+                extra_args=extra_args,
+                retry_count=retry_count,
+            )
+            record = self.traces[-1]
+            span.update(
+                metadata={"cost_available": record.cost_available},
+                usage_details={
+                    "input": record.input_tokens,
+                    "output": record.output_tokens,
+                },
+                cost_details={"total": record.cost} if record.cost_available else None,
+            )
+            return response
+
+    def _call_message(
+        self,
+        node: LLMNode,
+        messages: list[Message],
+        *,
+        tools: list[Tool] | None = None,
+        call_name: str | None = None,
+        extra_args: dict[str, Any] | None = None,
+        retry_count: int = 0,
+    ) -> AssistantMessage:
         model = self.routing.model_for(node)
         args = dict(self.llm_args)
         args.update(extra_args or {})
         args.setdefault("num_retries", 0)
+        if node == "decision" and _provider(model).lower() == "deepseek":
+            extra_body = dict(args.get("extra_body") or {})
+            extra_body.setdefault("thinking", {"type": "enabled"})
+            args["extra_body"] = extra_body
         if node != "decision":
             args.setdefault("temperature", self.light_temperature)
             args.setdefault("max_tokens", self.lightweight_max_tokens[node])
@@ -155,7 +195,9 @@ class LLMRuntime:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cached_input_tokens=int(usage.get("prompt_cache_hit_tokens", 0)),
-                latency_ms=(response.generation_time_seconds or (time.perf_counter() - started))
+                latency_ms=(
+                    response.generation_time_seconds or (time.perf_counter() - started)
+                )
                 * 1000,
                 cost=cost,
                 cost_available=not (cost == 0.0 and input_tokens + output_tokens > 0),

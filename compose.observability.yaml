@@ -1,0 +1,137 @@
+name: policypilot-observability
+services:
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.63.0
+    restart: unless-stopped
+    depends_on: &platform-dependencies
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+      minio: {condition: service_started}
+    environment: &platform-environment
+      NEXTAUTH_URL: http://127.0.0.1:13000
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:?Run init}@postgres:5432/langfuse
+      SALT: ${LANGFUSE_SALT:?Run init}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?Run init}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      LANGFUSE_IN_APP_AGENT_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?Run init}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?Run init}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?Run init}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:?Run init}
+      REDIS_TLS_ENABLED: "false"
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4.63.0
+    restart: unless-stopped
+    depends_on: *platform-dependencies
+    ports: ["127.0.0.1:13000:3000"]
+    environment:
+      <<: *platform-environment
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?Run init}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://127.0.0.1:13900
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://minio:9000
+      LANGFUSE_INIT_ORG_ID: policypilot-local
+      LANGFUSE_INIT_ORG_NAME: PolicyPilot Local
+      LANGFUSE_INIT_PROJECT_ID: policypilot-local
+      LANGFUSE_INIT_PROJECT_NAME: PolicyPilot
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?Run init}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?Run init}
+      LANGFUSE_INIT_USER_EMAIL: admin@policypilot.local
+      LANGFUSE_INIT_USER_NAME: Local Admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:?Run init}
+  postgres:
+    image: postgres:17.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_DB: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:?Run init}
+    volumes: ["langfuse-postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4.5
+    restart: unless-stopped
+    environment:
+      REDISCLI_AUTH: ${LANGFUSE_REDIS_PASSWORD:?Run init}
+    command: ["sh", "-c", 'exec redis-server --requirepass "$$REDISCLI_AUTH" --appendonly yes --maxmemory-policy noeviction']
+    volumes: ["langfuse-redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    user: "101:101"
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?Run init}
+    volumes:
+      - langfuse-clickhouse:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  minio:
+    image: policypilot/minio:source-7aac2a2c5b7c
+    build: {context: ./deploy/minio}
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['mkdir -p /data/langfuse && exec minio server /data --address :9000 --console-address :9001']
+    environment:
+      MINIO_ROOT_USER: langfuse
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:?Run init}
+    ports: ["127.0.0.1:13900:9000", "127.0.0.1:13901:9001"]
+    volumes: ["langfuse-minio:/data"]
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    user: "0:0"
+    environment:
+      OTEL_COLLECTOR_TOKEN: ${POLICYPILOT_OTEL_TOKEN:?Configure .env.observability}
+      LANGFUSE_OTLP_ENDPOINT: ${LANGFUSE_OTLP_ENDPOINT:?Use scripts/observability.py start}
+      LANGFUSE_AUTHORIZATION: ${LANGFUSE_AUTHORIZATION:?Use scripts/observability.py start}
+    ports: ["127.0.0.1:14318:4318", "127.0.0.1:14333:13133"]
+    volumes:
+      - ./deploy/observability/collector.yaml:/etc/otelcol/config.yaml:ro
+      - collector-queue:/var/lib/otelcol
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 384m
+    restart: unless-stopped
+volumes:
+  collector-queue:
+  langfuse-postgres:
+  langfuse-redis:
+  langfuse-clickhouse:
+  langfuse-clickhouse-logs:
+  langfuse-minio:

@@ -22,7 +22,26 @@ memory as authoritative facts.
 The current benchmark domain is `banking_knowledge`. The `mock` domain is kept
 only as a lightweight fixture for runtime tests.
 
+## Storage Services
+
+The optional service-backed deployment uses PostgreSQL for durable conversations
+and memory, MinIO for snapshot artifacts, Qdrant Server for policy vectors, and
+Redis for policy retrieval caching. Activation requires successful connectivity
+checks and migration; existing benchmark files are preserved. See
+[Storage Services](docs/policypilot/STORAGE.md) for setup and deployment status.
+
 ## Runtime
+
+Optional local Langfuse tracing links requests, workflow nodes, model usage and
+tool execution without exporting raw banking payloads. Existing trajectories
+remain the audit source. Deployment, read-back verification and current status:
+[Local Observability](docs/policypilot/OBSERVABILITY.md).
+
+An isolated, synthetic Decision I/O dataset and optional prompt-optimization
+entry point are described in [Decision GEPA Pilot](docs/policypilot/DECISION_GEPA.md).
+This pilot does not execute banking tools or change the deployed prompt.
+The [V2 dataset design](docs/policypilot/DECISION_DATASET_V2.md) adds balanced
+capability coverage and grouped counterfactual cases; labels remain a review draft.
 
 PolicyPilot keeps the benchmark runtime and the agent's internal reasoning
 separate:

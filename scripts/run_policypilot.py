@@ -8,9 +8,13 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("PYTHONUTF8", "1")
+load_dotenv(ROOT / ".env")
+load_dotenv(ROOT / ".env.storage")
 
 from policypilot.metrics import metrics_from_simulation  # noqa: E402
 from policypilot.registry import register_policypilot  # noqa: E402

@@ -1,0 +1,68 @@
+{
+  "schema_version": "decision-gepa-v2",
+  "created": "2026-10-23",
+  "approval_status": "draft_unreviewed",
+  "split_unit": "scenario_group_with_counterfactual_pairs",
+  "shared_policy_documents_allowed": true,
+  "counts": {
+    "train": 32,
+    "validation": 32,
+    "test": 32
+  },
+  "ability_counts": {
+    "train": {
+      "known_arguments": 4,
+      "entity_binding": 4,
+      "authority_freshness": 4,
+      "authorization": 4,
+      "policy_boundaries": 4,
+      "information_acquisition": 4,
+      "mutation_verification": 4,
+      "multi_turn_revision": 4
+    },
+    "validation": {
+      "known_arguments": 4,
+      "entity_binding": 4,
+      "authority_freshness": 4,
+      "authorization": 4,
+      "policy_boundaries": 4,
+      "information_acquisition": 4,
+      "mutation_verification": 4,
+      "multi_turn_revision": 4
+    },
+    "test": {
+      "known_arguments": 4,
+      "entity_binding": 4,
+      "authority_freshness": 4,
+      "authorization": 4,
+      "policy_boundaries": 4,
+      "information_acquisition": 4,
+      "mutation_verification": 4,
+      "multi_turn_revision": 4
+    }
+  },
+  "action_counts": {
+    "tool_call": 68,
+    "answer": 26,
+    "missing_information": 2
+  },
+  "scenario_groups": 24,
+  "counterfactual_pairs": 48,
+  "historical_exact_snapshots": 0,
+  "data_sha256": "bf398e13b2e122eda8cbb75a798459cf0506427ecdc0503b4fffa0e17a627ebe",
+  "split_hashes": {
+    "train": "6004cf0f2b2eb5625258e9630fa4b3d5f4fe257f9e20cbdcae18af7338c893b4",
+    "validation": "d91aa6fdd249db4a4c61767415a037d6674483e2ff98b9c3d9b98702d0b3641a",
+    "test": "78a5b7d1ae2dcc2199501eba4d3e7cf2814b1cf99e9347f5b5909530e6422d0d"
+  },
+  "judge_probes_sha256": "76c4b69e31310c588df7132fdecc9f4128f1f29afaf807674070717c00e4a240",
+  "seed_sha256": "87d39248c416ac8749e910c5f30470f99baede4bdc30fed505a27085181bc8e9",
+  "limits": [
+    "not_human_reviewed",
+    "not_empirically_difficulty_calibrated",
+    "not_unseen_policy_generalization",
+    "not_exact_runtime_replay",
+    "no_hidden_task_gold_used",
+    "no_paid_model_calls"
+  ]
+}

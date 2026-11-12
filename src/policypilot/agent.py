@@ -63,6 +63,9 @@ from policypilot.runtime.recovery import (
 from policypilot.skills import SkillMatcher, SkillRuntime
 from policypilot.skills.matcher import LLMSkillFallback
 from policypilot.state import InformationNeed, PolicyPilotState
+from policypilot.storage.checkpoint import SqlCheckpointStore
+from policypilot.storage.database import get_service_database, load_storage_environment
+from policypilot.storage.memory import SqlMemoryStore
 from policypilot.tool_policy import ToolBudget, ToolCallGuard, ToolExposureResolver
 from policypilot.workflow.graph import PolicyPilotGraphState, PolicyPilotWorkflow
 from tau2.agent.base.llm_config import LLMConfigMixin
@@ -114,7 +117,18 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
         self.budget = budget or ToolBudget()
         self.config = config or PolicyPilotConfig()
         self.task_id = task_id
-        self.checkpoints = JsonCheckpointStore(self.config.checkpoint_dir)
+        load_storage_environment()
+        storage_backend = os.getenv(
+            "POLICYPILOT_STORAGE_BACKEND", self.config.storage_backend
+        )
+        if storage_backend not in {"postgres", "json"}:
+            raise ValueError("POLICYPILOT_STORAGE_BACKEND must be postgres or json")
+        database = get_service_database() if storage_backend == "postgres" else None
+        self.checkpoints = (
+            SqlCheckpointStore(database)
+            if database is not None
+            else JsonCheckpointStore(self.config.checkpoint_dir)
+        )
         self.model_routing = resolve_model_routing(self.llm, self.config)
         self.llm_runtime = llm_runtime or LLMRuntime(
             self.model_routing,
@@ -216,9 +230,16 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
         self.policy_engine = PassthroughPolicyEngine()
         self.memory: MemoryService | None = None
         if self.config.memory_enabled:
-            store = memory_store or JsonMemoryStore(
-                self.config.memory_dir,
-                max_episodes_per_user=self.config.memory_max_episodes_per_user,
+            store = memory_store or (
+                SqlMemoryStore(
+                    database,
+                    max_episodes_per_user=self.config.memory_max_episodes_per_user,
+                )
+                if database is not None
+                else JsonMemoryStore(
+                    self.config.memory_dir,
+                    max_episodes_per_user=self.config.memory_max_episodes_per_user,
+                )
             )
             extractor = memory_extractor or LLMPreferenceExtractor(
                 runtime=self.llm_runtime,

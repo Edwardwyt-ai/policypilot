@@ -9,6 +9,7 @@ from policypilot.state import PolicyPilotState
 from tau2.data_model.message import AssistantMessage
 from tau2.knowledge.embeddings_cache import get_embedding_cache_metrics
 from tau2.knowledge.retrieval_cache import get_retrieval_cache_metrics
+from tau2.utils.telemetry import current_ids
 
 
 class MetadataHost(Protocol):
@@ -63,6 +64,7 @@ def attach_metrics_metadata(
     control.embedding_cache_misses = int(embedding_cache["misses"])
     open_user = list(state.open_needs("USER"))
     raw["policypilot_v1"] = {
+        "telemetry": current_ids(),
         "step_count": control.step_count,
         "goal_changes": control.goal_change_count,
         "facts_added": control.facts_added_count,

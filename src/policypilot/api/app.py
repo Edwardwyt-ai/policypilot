@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from policypilot.api.auth import ApiKeyAuthenticator, Identity
 from policypilot.api.authorization import ToolAuthorizationError
+from policypilot.api.persistence import PersistentConversationService
 from policypilot.api.runtime import (
     BackendRuntimeSettings,
     DefaultRuntimeFactory,
@@ -36,6 +38,9 @@ from policypilot.api.service import (
     ConversationNotFoundError,
     ConversationService,
 )
+from policypilot.observability.http import TelemetryMiddleware
+from policypilot.storage.database import get_service_database, load_storage_environment
+from tau2.utils.telemetry import flush
 
 
 @dataclass(frozen=True)
@@ -77,21 +82,34 @@ def create_app(
     service: ConversationService | None = None,
     runtime_factory: Any | None = None,
 ) -> FastAPI:
+    load_storage_environment()
     settings = settings or BackendSettings.from_env()
     factory = runtime_factory or DefaultRuntimeFactory(
         BackendRuntimeSettings.from_env()
     )
-    service = service or ConversationService(factory)
+    service = service or (
+        PersistentConversationService(factory, get_service_database())
+        if isinstance(factory, DefaultRuntimeFactory)
+        and os.getenv("POLICYPILOT_STORAGE_BACKEND") == "postgres"
+        else ConversationService(factory)
+    )
     authenticator = ApiKeyAuthenticator(
         settings.api_key, settings.user_id, settings.user_tokens
     )
     identity_dependency = authenticator.dependency
 
+    @asynccontextmanager
+    async def lifespan(_):
+        yield
+        await run_in_threadpool(flush)
+
     app = FastAPI(
         title="PolicyPilot API",
         version="1.0.0",
         description="Authenticated conversation API for PolicyPilot.",
+        lifespan=lifespan,
     )
+    app.add_middleware(TelemetryMiddleware)
     app.state.conversation_service = service
     app.state.runtime_factory = factory
 
@@ -118,6 +136,13 @@ def create_app(
     async def limit_handler(_, exc):
         return _json_error(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
 
+    @app.exception_handler(OSError)
+    async def storage_unavailable_handler(_, __):
+        return _json_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Storage unavailable; do not replay uncertain operations.",
+        )
+
     @app.exception_handler(ToolAuthorizationError)
     async def tool_access_handler(_, __):
         return _json_error(
@@ -138,6 +163,12 @@ def create_app(
     async def ready() -> HealthResponse:
         readiness = getattr(factory, "readiness", None)
         ok, details = readiness() if readiness is not None else (True, {})
+        if isinstance(service, PersistentConversationService):
+            try:
+                await run_in_threadpool(service.database.get, "health", "probe")
+                details = {**details, "postgres": "ready"}
+            except Exception:
+                ok, details = False, {**details, "postgres": "unavailable"}
         if not ok:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -168,7 +199,7 @@ def create_app(
         conversation_id: str,
         identity: Identity = Depends(identity_dependency),
     ) -> ConversationView:
-        return service.get(identity.user_id, conversation_id)
+        return await run_in_threadpool(service.get, identity.user_id, conversation_id)
 
     @app.post(
         "/v1/conversations/{conversation_id}/messages",
@@ -261,7 +292,9 @@ def create_app(
         after: int = Query(default=0, ge=0),
         identity: Identity = Depends(identity_dependency),
     ) -> StreamingResponse:
-        snapshot = service.events(identity.user_id, conversation_id, after)
+        snapshot = await run_in_threadpool(
+            service.events, identity.user_id, conversation_id, after
+        )
 
         async def stream():
             for event in snapshot:
@@ -285,6 +318,7 @@ def _json_error(status_code: int, detail: str):
 def run() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     load_dotenv(repo_root / ".env")
+    load_storage_environment()
     settings = BackendSettings.from_env()
     runtime_factory = DefaultRuntimeFactory(BackendRuntimeSettings.from_env())
     runtime_factory.prepare(repo_root)

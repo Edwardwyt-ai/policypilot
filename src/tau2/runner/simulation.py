@@ -14,6 +14,7 @@ from tau2.evaluator.evaluator import EvaluationType, evaluate_simulation
 from tau2.orchestrator.full_duplex_orchestrator import FullDuplexOrchestrator
 from tau2.orchestrator.modes import CommunicationMode
 from tau2.orchestrator.orchestrator import Orchestrator
+from tau2.utils.telemetry import observe, suppress
 
 
 def run_simulation(
@@ -56,7 +57,8 @@ def run_simulation(
         print(result.reward_info.reward)
     """
     # Run the orchestrator
-    simulation = orchestrator.run()
+    with observe("benchmark.episode", "agent", session_id=orchestrator.task.id):
+        simulation = orchestrator.run()
 
     # Save the actual policy used for this simulation
     simulation.policy = orchestrator.environment.get_policy()
@@ -73,15 +75,16 @@ def run_simulation(
     solo_mode = getattr(orchestrator, "solo_mode", False)
 
     # Evaluate
-    reward_info = evaluate_simulation(
-        simulation=simulation,
-        task=task,
-        evaluation_type=evaluation_type,
-        solo_mode=solo_mode,
-        domain=domain,
-        mode=mode,
-        env_kwargs=env_kwargs,
-    )
+    with suppress():
+        reward_info = evaluate_simulation(
+            simulation=simulation,
+            task=task,
+            evaluation_type=evaluation_type,
+            solo_mode=solo_mode,
+            domain=domain,
+            mode=mode,
+            env_kwargs=env_kwargs,
+        )
     simulation.reward_info = reward_info
 
     # Optional post-evaluation lifecycle hook. PolicyPilot uses this only for

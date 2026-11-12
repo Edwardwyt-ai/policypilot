@@ -1,0 +1,25 @@
+{
+  "schema_version": "decision-gepa-v1",
+  "created": "2026-10-22",
+  "counts": {
+    "train": 24,
+    "validation": 8,
+    "test": 8
+  },
+  "action_counts": {
+    "answer": 33,
+    "tool_call": 7
+  },
+  "family_count": 10,
+  "split_unit": "policy_document_and_scenario_family",
+  "dataset_sha256": "b25384eb8113f4a6e751c1cc749b09925a2fd708cfeb3e975589609fe0e3636f",
+  "seed_sha256": "87d39248c416ac8749e910c5f30470f99baede4bdc30fed505a27085181bc8e9",
+  "limits": [
+    "synthetic_not_real_rollouts",
+    "not_human_reviewed",
+    "no_benchmark_reward_claim",
+    "minimal_domain_policy",
+    "fixed_tool_subset",
+    "no_environment_execution"
+  ]
+}

@@ -96,6 +96,48 @@ def test_runtime_merges_partial_lightweight_token_overrides():
     assert runtime.lightweight_max_tokens["coverage_manager"] == 180
 
 
+@pytest.mark.parametrize(
+    ("node", "model", "expected"),
+    [
+        ("decision", "deepseek/deepseek-v4-pro", "enabled"),
+        ("decision", "deepseek/deepseek-flash", "enabled"),
+        ("coverage_manager", "deepseek/deepseek-flash", "disabled"),
+        ("semantic_planner", "deepseek/deepseek-flash", "disabled"),
+        ("decision", "openai/test-model", None),
+    ],
+)
+def test_runtime_thinking_defaults_are_node_and_provider_scoped(node, model, expected):
+    calls = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return response("done")
+
+    runtime = LLMRuntime(ModelRouting(model, model), generate_fn=fake_generate)
+    runtime.call_message(node, [UserMessage.text("Check policy")])
+
+    thinking = calls[0].get("extra_body", {}).get("thinking")
+    assert thinking == ({"type": expected} if expected else None)
+
+
+def test_decision_thinking_preserves_explicit_override_and_other_body_fields():
+    calls = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return response("done")
+
+    arguments = {"extra_body": {"thinking": {"type": "disabled"}, "custom": True}}
+    runtime = LLMRuntime(
+        ModelRouting("deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"),
+        generate_fn=fake_generate,
+        llm_args=arguments,
+    )
+    runtime.call_message("decision", [UserMessage.text("Check policy")])
+
+    assert calls[0]["extra_body"] == arguments["extra_body"]
+
+
 class StaticRuntime:
     def __init__(self, result):
         self.result = result
@@ -263,8 +305,11 @@ def test_deepseek_thinking_history_preserves_reasoning_content():
     )
 
     converted = to_litellm_messages(
-        [generated, deterministic], preserve_reasoning_content=True
+        [generated, deterministic, response("Earlier answer")],
+        preserve_reasoning_content=True,
     )
 
     assert converted[0]["reasoning_content"] == "Need authoritative terms."
     assert converted[1]["reasoning_content"] == ""
+    assert converted[2]["reasoning_content"] == ""
+    assert "reasoning_content" not in to_litellm_messages([generated])[0]

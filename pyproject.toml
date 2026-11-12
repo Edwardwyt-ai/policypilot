@@ -37,6 +37,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+prompt-optimization = ["gepa==0.1.4", "jsonschema>=4,<5", "markdown-it-py>=4,<5"]
+observability = [
+    "langfuse>=4.7,<5",
+    "opentelemetry-sdk>=1.36,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.36,<2",
+]
+storage = [
+    "sqlalchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+    "redis>=5,<7",
+    "boto3>=1.35,<2",
+]
 voice = [
     "elevenlabs>=1.54.0",
     "deepgram-sdk>=3.7.3",

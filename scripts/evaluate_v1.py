@@ -22,6 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 load_dotenv(ROOT / ".env")
+load_dotenv(ROOT / ".env.storage")
 
 from policypilot.evaluation import (  # noqa: E402
     run_evaluation_batch,

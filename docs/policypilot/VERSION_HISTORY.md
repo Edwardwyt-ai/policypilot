@@ -21,6 +21,282 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Judge Semantic Repair, Calibration and Incomplete GEPA Reruns
+
+- Date: 2026-10-23. Parent: GEPA Preflight Hardening and Failed Judge Calibration.
+- Removed candidate instructions from Judge context. Added independent narrow
+  completion review, completion polarity, explicit JSON schemas and corrective
+  retries with prior validation error. Unsupported success is a score veto;
+  plans, in-progress notices and non-execution statements are not success claims.
+- Quote validation now compares words in visible CommonMark text, preserving
+  negation while accepting Markdown/whitespace differences. Declared already
+  installed markdown-it-py as a prompt-optimization extra; no package upgrade.
+- Separated categorical diagnostics from GEPA's numeric side_info.scores;
+  added actual installed-SDK regression coverage and checked baseline-score reuse.
+- Verification: 73 focused tests passed, 2 existing warnings, exit 0; Ruff and
+  offline lock check pass (232 packages). Final paid development calibration
+  48/48, 88 Judge responses. Final-parser offline replay 48/48 and historical
+  quote replay 4/4, zero provider calls. This is NOT held-out Judge accuracy.
+- Multiple failures are preserved, including premature-success false positives,
+  numeric objective TypeError, enum/quote validation failures and ineffective
+  unchanged schema retries. No completed GEPA candidate-quality comparison.
+- Final run7 completed 3 seed examples before a remote disconnect on target
+  request 4 (RemoteProtocolError surfaced as InternalServerError); recorded
+  request_error, no additional retry. No final best prompt or deploy. Held-out
+  test untouched; no banking tools, Reward/DB/Required Actions evaluation, commit
+  or push. Existing production instructions and dataset labels unchanged.
+- Across calibration3 through run7: 478 successful response records, 1649182
+  input / 58607 output tokens; summed API time 1058.636 seconds. Price-map costs
+  unavailable, not free; disconnected request billing unknown. Full accounting,
+  failure sequence and limitations in
+  [repair report](experiments/GEPA_JUDGE_REPAIR_20261023.md).
+- Artifacts: data/storage/decision-gepa/v2_20261023_calibration7/ and run3-run7
+  plus intervening calibration directories. Next paid search remains outstanding;
+  do not treat intermediate candidate files/checkpoints as completed optimization.
+
+## Unreleased - GEPA Preflight Hardening and Failed Judge Calibration
+
+- Date: 2026-10-23. Parent: GEPA Judge Recovery and Audit Fix.
+- Unified exact/flexible tool argument schema validation; rejected falsey
+  malformed tool-call fields and cross-split scenario_group reuse. Recorded
+  request/truncation/optimization status, public model messages and scorer/Judge
+  hashes. Added TRAIN-only positive/safety calibration mode and regression tests.
+- Verification: 57 focused tests passed, 2 existing warnings; pytest exited 0.
+  Ruff lint/format pass for four touched Python files. No full regression run.
+- Paid calibration: 8 Judge calls on 4 TRAIN pairs, v4-pro non-thinking;
+  expected-score match 5/8. Judge accepted a false refund-success claim, rejected
+  a correct constraints-preserving query and gave a false-success query partial
+  credit. Schema recovery is fixed, semantic grading reliability is not.
+- Calibration intentionally exited 1 with calibration_failed status. Did NOT
+  launch GEPA search or use held-out test after failure; no final candidate,
+  production prompt change, banking-tool calls, benchmark Reward/DB evaluation,
+  dataset edits, commit or push. No post-failure executable-code changes.
+- Usage: 27514 input / 995 output tokens, 3840 cached input included; API time
+  sum 22.268 seconds; price-map cost unavailable. Artifacts:
+  data/storage/decision-gepa/v2_20261023_calibration2/ and
+  [Judge calibration report](experiments/GEPA_JUDGE_CALIBRATION_20261023.md).
+  Next: reviewed Judge specification/model calibration before prompt search.
+
+## Unreleased - GEPA Judge Recovery and Audit Fix
+
+- Date: 2026-10-23. Parent: V2 GEPA Pilot Aborted by Judge Schema Error.
+- Fixed blank Judge explanations without changing validated boolean scores;
+  missing explanations are flagged explicitly, never presented as model reasons.
+  Strict boolean and safety validation remains unchanged.
+- Invalid JSON/verdict schemas retry Judge once with the same frozen Agent
+  prediction. No target regeneration. Exhaustion raises JudgeEvaluationError
+  without a numeric score; CLI persists evaluator_error, case/candidate identity
+  and score=null in run_status.json. Transport exceptions still propagate.
+- Added raw per-attempt Judge audit records and recorded retry policy in run
+  settings. All additional model calls still pass through usage/cost logging.
+  Wrong-tool errors now report the expected tool before testing its argument
+  schema, correcting misleading feedback without changing rejection scores.
+- Verification: 51 focused tests passed with 2 existing warnings in the pytest
+  summary; Ruff lint/format passed. Test process remained alive after the summary
+  and was interrupted, exiting 1; clean interpreter shutdown is NOT verified.
+  No paid calls, GEPA rerun, benchmark, production prompt change, commit or push.
+- Artifacts: decision_prompt_eval.py, optimize_decision_prompt.py,
+  test_decision_prompt_eval.py and DECISION_GEPA.md. Existing paid-run artifacts
+  and dataset labels were not edited. Semantic Judge calibration remains pending.
+
+## Unreleased - V2 GEPA Pilot Aborted by Judge Schema Error
+
+- Date: 2026-10-23. Parent: Decision Dataset V2 Counterfactual Draft.
+- Ran the draft V2 Decision-only GEPA pilot with explicit unreviewed-data
+  override, all routes deepseek/deepseek-v4-pro, thinking disabled, seed 0,
+  serial evaluation, requested metric budget 64 and proposal cap 3.
+- Exit 1: Judge returned an empty feedback string; SemanticVerdict validation
+  aborted proposal 2's full validation. No code repair or automatic retry.
+  Completed 72 scores, 73 target calls, 68 Judge calls and 2 reflections.
+  Batch-boundary budget overshoot is recorded, not hidden.
+- Original full validation mean 0.953125 (32 cases). On the same 28 scored
+  validation cases, original 0.946429 versus proposal 2 0.857143. Proposal 2
+  repaired one training query but did not establish overall improvement.
+  Candidate validation is incomplete; no final prompt, held-out test or deploy.
+- Usage: 513758 input / 15313 output tokens, 92032 cached input included;
+  API time sum 327.052 seconds. Model price-map costs unavailable, not zero.
+- Judge calibration remains undone. Recorded suspected semantic grading noise,
+  misleading wrong-tool Schema feedback and strict answer-only label limits.
+  Banking tools, source data, runtime and production prompt unchanged. Reward,
+  DB Check and Required Actions not measured. No tests rerun, commit or push.
+- Artifacts: data/storage/decision-gepa/v2_20261023_run1/ and
+  [V2 pilot report](experiments/GEPA_V2_20261023.md). Next proposed step is
+  evaluator robustness/calibration, not further uncalibrated prompt search.
+
+## Unreleased - Decision Dataset V2 Counterfactual Draft
+
+- Date: 2026-10-23. Parent: Completed Non-Thinking GEPA Pilot.
+- Preserved V1 data and completed experiments. Added 96 new synthetic I/O rows:
+  train/validation/test 32 each, 24 independent scenario templates, 48 contrast
+  pairs with two ID/order variants. All eight capabilities appear in each split;
+  scenario groups and pair members do not cross splits. Shared policy documents
+  are intentional, so this is scenario hold-out, not unseen-policy evaluation.
+- Coverage: known arguments, entity binding, source/freshness, authorization,
+  policy boundaries/exceptions, information acquisition/context references,
+  mutation verification, multi-turn revisions. Uses native context construction,
+  source-qualified facts and tool schemas. Positive mutation outcomes are tool
+  messages, not trusted memory; observed excerpts are verbatim visible-source text.
+- Historical references are explicitly symptoms or observed frozen-I/O errors,
+  not imported exact runtime snapshots. Zero exact historical requests imported.
+  No hidden task criteria used. Draft labels and difficulty are not calibrated.
+- Added positive/opposite/safety Judge probes, source findings, frozen input and
+  label hashes, output-contract validation, schema-checked flexible query/page
+  arguments and runtime-compatible missing-information envelopes. V1 remains
+  supported. Explicit jsonschema prompt-optimization dependency already installed
+  at 4.25.1; offline lock refresh, no package installation or SDK upgrade.
+- CLI defaults to V2 inspect; paid modes refuse its unreviewed draft unless
+  explicitly overridden. No paid baseline, Judge calibration, GEPA optimization,
+  benchmark, production prompt change, commit or push was performed this turn.
+- Verification: 41 focused assertions passed, 2 existing warnings; Ruff/format,
+  pip check and offline lock check pass. Builder and pytest processes remained
+  alive after completed summaries and were interrupted; clean interpreter
+  shutdown remains unverified and was not attributed to a specific subsystem.
+- Artifacts: data/policypilot/evaluation/decision_gepa_v2/ (7 files),
+  scripts/build_decision_gepa_v2.py, docs/policypilot/DECISION_DATASET_V2.md.
+  Next: template/label review and TRAIN-probe Judge calibration, then measure
+  baseline train/validation difficulty before spending on optimization.
+
+## Unreleased - Completed Non-Thinking GEPA Pilot
+
+- Date: 2026-10-23. Parent: GEPA Installation and First Paid Pilot.
+- At the user's request, added experiment-only --thinking disabled for target
+  and reflector; production Decision still defaults to thinking enabled. Started
+  a fresh run with the same frozen data/model/seed, not a mixed-settings resume.
+- Optimization and held-out evaluation both exited 0. Three proposals, 34
+  actual evaluations (requested 32; GEPA batch-boundary overshoot), two accepted
+  pool members including seed. One paired training minibatch improved 2/3 to
+  3/3 by reusing an already-known account ID instead of asking again.
+- Seed and accepted child both validation 8/8. SDK tie-breaking retained seed.
+  Selected best_prompt.txt is unchanged; no overall prompt gain demonstrated.
+  Held-out eight unique cases passed 8/8; identical candidate/seed rows reused,
+  not two trials. The accepted non-seed child was not tested on held-out data.
+- Optimization 70 API responses, approximately 139.96s, estimated USD 0.128888;
+  held-out 16 responses, 27.66s, USD 0.025976. Total 86 responses, 254206 input /
+  10348 output tokens, estimated USD 0.154864 using official off-peak prices.
+  Including the preceding aborted run, estimated USD 0.273696; not billed cost.
+- 30 focused tests and Ruff passed; 2 existing warnings. No truncations, banking
+  tool execution, benchmark, deployment, commit or push. Complete report:
+  docs/policypilot/experiments/GEPA_NONTHINKING_20261023.md.
+- Artifacts: data/storage/decision-gepa/pilot_20261023_nothinking_run1/ and
+  pilot_20261023_nothinking_test1/. Next: improve reviewed train/validation
+  difficulty and predeclare tie-breaking; do not tune using these test results.
+
+## Unreleased - GEPA Installation and First Paid Pilot
+
+- Date: 2026-10-23. Parent: Frozen Decision Prompt GEPA Pilot.
+- Installed and pinned GEPA 0.1.4 in the project venv and prompt-optimization
+  extra; uv.lock refreshed without upgrading existing SDKs. SHA256-verified
+  official PyPI wheel. Updated CLI for the actual released GEPA configuration
+  API, bounded serial search and metered reflection calls. Identical held-out
+  candidate/seed results can be explicitly reused without duplicate API spend.
+- Verification: 29 focused tests passed, including a real installed-GEPA mock
+  evaluation; 2 existing warnings. Ruff, pip check and offline lock check pass.
+- Paid run pilot_20261023_run1 used Pro for target/judge/reflection, thinking on
+  for target/reflector, seed 0, 32 requested evaluations and 3 proposals maximum.
+  Baseline validation 8/8; proposal 1 tied baseline on three training cases and
+  was rejected. Proposal 2 aborted when target completion consumed all 8192
+  tokens as reasoning (87.377s, finish_reason=length), with no final output.
+- 37 API responses, 17 completed evaluations, 112157 input and 27662 output
+  tokens. Approximately 334.69s elapsed. Model prices unavailable in LiteLLM;
+  separate official off-peak rate estimate USD 0.118831, not billed cost.
+  No held-out run, selected prompt, deployment, benchmark, commit or push.
+- Full metrics, failure analysis and caveats:
+  docs/policypilot/experiments/GEPA_PILOT_20261023.md.
+  Raw artifacts: data/storage/decision-gepa/pilot_20261023_run1/ (ignored).
+- No automatic token-budget increase or paid rerun after failure. Next decision:
+  choose a fixed reasoning/output-budget policy and improve reviewed train/val
+  difficulty; preserve the untouched test set.
+
+## Unreleased - Frozen Decision Prompt GEPA Pilot
+
+- Date: 2026-10-22. Parent: Explicit Decision Thinking.
+- Added 40 agent-authored synthetic Decision I/O cases grounded in 10 existing
+  visible policy documents: train 24, validation 8, test 8; 33 answers and 7 tool
+  proposals. Split by document/scenario family. No hidden tasks or evaluator
+  criteria are read; labels are not human-reviewed or actual rollout gold.
+- Reuses build_agent_context and real tool schemas with synthetic verified
+  observations, minimal fixture domain policy and a fixed tool subset. Only
+  DECISION_INSTRUCTIONS is evolved; graph, retrieval and live runtime unchanged.
+- Added deterministic next-action checks plus injected semantic judge feedback,
+  a safety score veto, held-out exclusion, reproducible source/hash manifest,
+  optional GEPA optimize/test CLI and documentation. Default CLI only inspects;
+  no prompt is auto-deployed. Real-model modes require explicit invocation and
+  compatible optional GEPA SDK. Target/judge usage is separate from reflection
+  cost; max_evals is not a dollar cap.
+- Verification: generated all 40 cases; 28 focused assertions passed (2 existing
+  environment warnings); Ruff checks and formatting passed for four new Python
+  files. Python processes remained alive after successful output/test summaries
+  and were interrupted; clean interpreter shutdown remains unverified.
+- No GEPA SDK installation, real optimization, model inference, benchmark,
+  reward/cost/latency comparison, commit or push. Real SDK/provider compatibility
+  and label review remain prerequisites for an actual optimization experiment.
+- Artifacts: data/policypilot/evaluation/decision_gepa_v1/ and
+  docs/policypilot/DECISION_GEPA.md. New run outputs default to ignored
+  data/storage/decision-gepa/. The tiny synthetic set does not establish
+  production or end-to-end gains.
+
+## Unreleased - Explicit Decision Thinking
+
+- Date: 2026-10-22. Parent: current PolicyPilot runtime.
+- DeepSeek Decision calls default to thinking enabled; auxiliary nodes retain
+  their non-thinking defaults. Explicit call configuration can override defaults.
+  Other providers, safety guards and evaluator semantics are unchanged.
+- DeepSeek requests carrying tools now preserve reasoning_content on all retained
+  assistant messages, including non-tool messages and the Flash model alias.
+  Reasoning is not added to user-facing answer content.
+- Focused model-routing tests: 14 passed, including defaults, overrides and
+  history serialization. The initial broader command also selected two existing
+  OpenAI integration tests; both failed for missing API credentials. Local trace
+  export was permission-denied; focused rerun disables tracing in its process.
+  Rerun assertions completed (14 passed, 2 warnings), but the process did not
+  exit promptly after its summary and was interrupted; clean shutdown is not
+  verified.
+- No benchmark, reward/cost/latency comparison, Git commit or push performed.
+  Git status currently reports that this directory is not a work tree.
+
+## Unreleased - Local Langfuse Observability V1
+
+- Date: 2026-10-20. Parent: existing local metrics and trajectory recording.
+  Status: instrumentation and local configuration implemented; platform read-back
+  pending the corrected verification in the user's Windows session.
+- Added optional isolated Langfuse/OTel tracing for API requests, Agent turns,
+  workflow nodes, PolicyPilot model usage/cost and external Environment tools.
+  Bounded Need/coverage/mutation events and local trace IDs support correlation.
+  Export errors do not repeat business execution or replace business exceptions.
+  Disabled tracing bypasses node-state inspection. No Agent state-schema or
+  hidden evaluator changes; no business authorization is granted by telemetry.
+- Added dedicated local Compose services and volumes, authenticated Collector
+  disk queue, generated ignored credentials, readiness checks, synthetic smoke,
+  explicit enable/disable/stop and setup commands. Raw banking content and
+  exception messages are omitted; allowlisted identifiers are hashed. Existing
+  private trajectories and DB snapshots remain independent audit artifacts.
+- Added observability dependency group and refreshed uv.lock while retaining
+  existing storage changes. Installed/tested Langfuse 4.15.6 with OTel 1.39.1;
+  pip check passes. SDK 4.18.0/OTel 1.45.1 were also tested before alignment.
+- Initial regression: 267 passed, 1 skipped, 3 environment warnings. Compose
+  config --quiet and focused Ruff checks pass. Real SDK in-memory exporter
+  validates parent/child propagation; this is not platform ingestion evidence.
+- User reported successful platform/Collector/project readiness followed by
+  failed smoke for e269958bd0e923c9ce876e9cd6e7e972. Root cause in verification:
+  legacy GET /api/public/traces/{id} used against v4. Replaced it with bounded
+  GET /api/public/v2/observations filtered by traceId; validate root/child IDs,
+  reject mismatched traces/parents and retry incomplete asynchronous ingestion.
+  Focused tests after this fix: 28 passed, including real SDK and v4 contracts.
+- Full rerun after API fix hit a Windows access violation in the existing Memory
+  test loading Laya through Torch/Safetensors; it is not recorded as a passing
+  full regression. No changes to Laya were made to hide that failure.
+  Rerun with only that case deselected: 271 passed, 1 skipped, 1 deselected,
+  2 environment warnings. Successful runs cleaned their temporary directories;
+  crash artifact data/storage/telemetry-v4-37v9ymg8 remains because cleanup was
+  rejected by the execution policy. Pytest cache generation was disabled.
+- Docker named-pipe access and local platform HTTP are denied/unreachable from
+  the agent session. User-side deployment success does not establish corrected
+  trace read-back; run scripts/observability.py enable without rebuilding or
+  deleting platform data. Tracing remains disabled until successful verification.
+- No paid model calls, benchmark or asynchronous evaluation Worker added. Task
+  Reward/DB Check/Required Actions and task-level cost/latency are not measured.
+  No commit/push. Usage and limitations: docs/policypilot/OBSERVABILITY.md.
+
 ## Unreleased - Open User Simulation Environment V1
 
 - Date: 2026-10-16. Parent: existing API Runtime / service storage / HNSW work.
@@ -52,6 +328,84 @@ and their results were recorded.
 - Tests disable pytest cache and use data/storage TemporaryDirectory. Three
   interrupted-run directories remained; their cleanup was denied by tool policy.
   No commit or push. Usage: docs/policypilot/USER_SIMULATION.md.
+
+## Unreleased - Policy Server HNSW Index
+
+- Date: 2026-10-11. Parent: Service-Backed Persistence V1 / startup repair.
+- Server collection: HNSW m=16, ef_construct=100, indexing/full-scan thresholds
+  1 KB; ANN queries use hnsw_ef=128 and retain an explicit exact baseline option.
+  Embedded local Qdrant remains exact. Agent state/runtime/evaluator unchanged.
+- Existing compatible collections are validated and updated in place without
+  deleting or re-embedding points. Service connect waits for green/indexed state
+  before activation; timeouts preserve points. Retrieval cache keys are versioned.
+- Verification: 21 tests passed across Qdrant index, hybrid retrieval and storage
+  deployment, using auto-cleaned data/storage temporary paths with pytest cache
+  disabled. Tests cover reuse, ANN/exact query options, configuration readiness
+  and non-destructive timeout. Two pre-existing environment warnings remain.
+- Live Qdrant HTTP connection timed out in this session. Actual server graph
+  construction is NOT confirmed; run storage_services.py connect from the user's
+  terminal after starting services. No benchmark, recall/speed claim or paid LLM
+  run. Reward/DB/actions/tokens/cost/latency are not measured for this checkpoint.
+- Artifacts: qdrant_index.py, migrate_policy_vectors_to_qdrant.py,
+  storage_services.py, test_qdrant_index.py and STORAGE.md.
+
+## Unreleased - Storage Image Startup Repair
+
+- Date: 2026-10-11
+- Follow-up: Qdrant client 1.19.1 does not support context-manager syntax. Fixed
+  service preflight to use explicit try/finally close. Diagnostics now retain the
+  failing service and sanitized exception text instead of only RuntimeError.
+  Six deployment/probe tests passed, including close on success/failure and
+  credential redaction; Ruff passed.
+  Live connectivity from the Codex account remains limited (PostgreSQL timeout);
+  this fix is not evidence that migration completed.
+- Failure: Docker Hub rejected the configured MinIO image; concurrent pulls were
+  interrupted before migration. An anonymous authenticated Quay probe also failed
+  with HTTP 401, so no unverified registry substitution was made.
+- Replaced the withdrawn image with a local build from official MinIO commit
+  `7aac2a2c5b7c882e68c1ce017d8256be2feea27f`. Go and Debian base images are pinned
+  by verified registry digests. No third-party MinIO binary/image is used.
+- Launcher validates Compose, pulls three upstream images, builds MinIO and then
+  starts services. Every failure stops before configuration activation; volumes,
+  credentials, ports and S3 adapters are unchanged.
+- Verification: PostgreSQL/Redis/Qdrant tags and both build-image manifests
+  returned HTTP 200; upstream commit resolves in GitHub and the Go module proxy.
+  Compose `config --quiet` and PowerShell syntax passed; three new offline
+  deployment-configuration tests and Ruff passed. No paid benchmark was run.
+- Upstream community MinIO is archived: local-development use only, not a claim
+  of production security support. Real build/start remains unverified because
+  the Codex account cannot access the Docker Engine named pipe.
+
+## Unreleased - Service-Backed Persistence V1
+
+- Date: 2026-10-11
+- Scope: PostgreSQL conversations/memory/checkpoints, MinIO snapshot artifacts,
+  Qdrant Server policy-vector migration, Redis hybrid-policy response caching.
+- Added authenticated loopback-only Compose services and a Windows installation /
+  startup script. Credentials live in ignored `.env.services`; `.env.storage`
+  activates only after connectivity, memory/checkpoint import and vector checks.
+- SQL engines are pooled per worker. Conversation execution uses a durable
+  reservation and short transactional lock, with response/snapshot/idempotency
+  receipt committed together. Interrupted writes never auto-replay. Profile
+  stale revisions are rejected; per-user episodes preserve bounded retention.
+- Large snapshots use checksum-verified immutable MinIO objects. Historical
+  experiments have an explicit archive command and PostgreSQL catalog; original
+  benchmark paths and all legacy source data remain intact. Episode embeddings
+  stay with bounded PostgreSQL records, not a new vector index.
+- Redis caches policy responses only, keyed by queries, corpus/index versions and
+  retrieval parameters. It fails open as a cache miss; SQL/artifact failures do
+  not silently fall back to SQLite. SQLite is an explicit offline test adapter.
+- Verification: `tests/policypilot`: 215 passed, 1 skipped; focused hybrid retrieval
+  and Qdrant tests: 10 passed. The 13 new storage contract tests use temporary
+  SQLite, a fake Redis client and botocore S3 stubs, not live services. Ruff passed;
+  Compose YAML parsed and PowerShell launcher syntax checked. `uv.lock` updated.
+- Installed Python storage drivers. Real-service connectivity check failed with
+  OperationalError; Docker is absent and this Codex Windows account cannot launch
+  winget / access WSL. `.env.storage` was not created. Docker/server installation
+  and production-data migration remain pending in the user's Windows session.
+- No paid LLM/benchmark run and no Git commit/push were performed. Remaining
+  limitations: no automatic interrupted-operation reconciliation, artifact GC,
+  or managed remote TLS/backups. See `STORAGE.md` for the actual deployment status.
 
 ## Unreleased - Explicit Context Loading And User-Bound Tool Authorization V1
 

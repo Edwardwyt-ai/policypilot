@@ -17,6 +17,7 @@ from tau2.data_model.tasks import EnvAssertion, EnvFunctionCall, InitializationD
 from tau2.environment.db import DB
 from tau2.environment.tool import Tool
 from tau2.environment.toolkit import ToolKitBase, ToolSignature, get_tool_signatures
+from tau2.utils.telemetry import observe
 
 
 class EnvironmentInfo(BaseModel):
@@ -463,6 +464,24 @@ class Environment:
             raise ValueError(f"Tool names overlap: {overlap}")
 
     def get_response(self, message: ToolCall) -> ToolMessage:
+        """Execute unchanged tool semantics inside a payload-free observation."""
+        with observe(
+            "tool.execute",
+            "retriever" if message.name.startswith("KB_search") else "tool",
+        ) as span:
+            result = self._get_response(message)
+            span.update(
+                metadata={
+                    "tool_name": message.name
+                    if message.name.isidentifier()
+                    else "unknown",
+                    "failed": bool(result.error),
+                },
+                failed=bool(result.error),
+            )
+            return result
+
+    def _get_response(self, message: ToolCall) -> ToolMessage:
         """
         Get the response of the domain. This also calls sync_tools.
         Args:

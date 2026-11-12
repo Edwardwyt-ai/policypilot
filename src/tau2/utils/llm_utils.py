@@ -247,7 +247,7 @@ def to_litellm_messages(
                 "content": message.content,
                 "tool_calls": tool_calls,
             }
-            if preserve_reasoning_content and message.is_tool_call():
+            if preserve_reasoning_content:
                 converted["reasoning_content"] = (
                     _assistant_reasoning_content(message) or ""
                 )
@@ -444,7 +444,7 @@ def generate(
 
     litellm_messages = to_litellm_messages(
         messages,
-        preserve_reasoning_content=model.startswith("deepseek/deepseek-v4"),
+        preserve_reasoning_content=(model.startswith("deepseek/") and bool(tools)),
     )
     tools_schema = (
         [

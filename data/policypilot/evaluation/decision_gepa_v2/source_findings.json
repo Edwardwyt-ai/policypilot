@@ -1,0 +1,26 @@
+{
+  "scope": "Mechanism references only. No hidden task gold or future observations enter Decision inputs.",
+  "findings": [
+    {
+      "reference": "data/storage/decision-gepa/pilot_20261023_nothinking_run1/evaluations.jsonl",
+      "record_id": "checking_credit-03",
+      "observed": "The response mentioned SYN-CHECK, then asked for the account ID instead of proposing the authorized credit.",
+      "attribution": "Observed frozen-I/O Decision error in V1, not evidence of a general failure rate.",
+      "v2_use": "Known-value reuse and entity binding; new synthetic cases and contrast conditions, not a verbatim imported trajectory."
+    },
+    {
+      "reference": "data/simulations/vscode_task_001_seed0_20260921_191633/tasks/task_001/results.json",
+      "observed": "Repeated assistant requests for a customer identifier.",
+      "attribution": "Visible transcript symptom only; exact Decision inputs are unavailable in this inspected artifact, so upstream versus Decision responsibility is not proven.",
+      "v2_use": "Construct cases with explicitly supplied identifiers versus genuinely absent bindings, rather than labeling the whole historical task as a Decision failure."
+    },
+    {
+      "reference": "data/simulations/vscode_task_001_seed0_20260922_000851/tasks/task_001/results.json",
+      "observed": "A strong card recommendation was followed by an inability to establish annual fees.",
+      "attribution": "Not a claim that the no-fee requirement was already visible at the earlier historical decision. Exact prompt snapshots are not available here.",
+      "v2_use": "New explicit no-fee/cashback requirement with insufficient policy evidence; test retrieval versus missing-policy fallback without importing benchmark answers."
+    }
+  ],
+  "historical_exact_snapshots_imported": 0,
+  "human_review_status": "not_reviewed"
+}

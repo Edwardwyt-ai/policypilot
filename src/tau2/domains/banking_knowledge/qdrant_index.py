@@ -1,9 +1,10 @@
-"""Qdrant persistence and exact dense search for banking policy chunks."""
+"""Qdrant persistence with server HNSW and exact local test search."""
 
 from __future__ import annotations
 
 import json
 import threading
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,6 +19,9 @@ from tau2.domains.banking_knowledge.vectorization import (
 )
 
 DEFAULT_COLLECTION = "banking_policy_chunks_v1"
+HNSW_M = 16
+HNSW_EF_CONSTRUCT = 100
+HNSW_EF_SEARCH = 128
 _CLIENTS_LOCK = threading.Lock()
 _LOCAL_CLIENTS: dict[str, tuple[Any, int]] = {}
 
@@ -33,8 +37,60 @@ def _qdrant_imports():
     return QdrantClient, models
 
 
+def hnsw_collection_options() -> dict:
+    """Low KB thresholds enable indexing for the small policy corpus."""
+    _, models = _qdrant_imports()
+    return {
+        "hnsw_config": models.HnswConfigDiff(
+            m=HNSW_M, ef_construct=HNSW_EF_CONSTRUCT, full_scan_threshold=1
+        ),
+        "optimizers_config": models.OptimizersConfigDiff(indexing_threshold=1),
+    }
+
+
+def configure_hnsw(client, collection: str, *, wait_seconds: float = 120) -> dict:
+    """Update in place; never remove points or recreate an existing collection."""
+    if wait_seconds < 0:
+        raise ValueError("wait_seconds must be non-negative")
+    if not client.update_collection(
+        collection_name=collection, **hnsw_collection_options()
+    ):
+        raise RuntimeError("Qdrant rejected HNSW configuration")
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        info = client.get_collection(collection)
+        hnsw = info.config.hnsw_config
+        points = client.count(collection_name=collection, exact=True).count
+        indexed = info.indexed_vectors_count or 0
+        configured = (
+            hnsw.m == HNSW_M
+            and hnsw.ef_construct == HNSW_EF_CONSTRUCT
+            and hnsw.full_scan_threshold == 1
+            and info.config.optimizer_config.indexing_threshold == 1
+        )
+        ready = configured and str(info.status) == "green" and indexed >= points
+        report = {
+            "collection": collection,
+            "hnsw_configured": configured,
+            "index_ready": ready,
+            "points_count": points,
+            "indexed_vectors_count": indexed,
+            "m": hnsw.m,
+            "ef_construct": hnsw.ef_construct,
+            "hnsw_ef": HNSW_EF_SEARCH,
+        }
+        if ready or wait_seconds == 0:
+            return report
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"HNSW build is not ready: {report}; points preserved")
+        time.sleep(min(1, max(0, deadline - time.monotonic())))
+
+
 def create_qdrant_client(
-    *, path: str | Path | None = None, url: str | None = None, api_key: str | None = None
+    *,
+    path: str | Path | None = None,
+    url: str | None = None,
+    api_key: str | None = None,
 ):
     """Create one local-persistent or server-backed Qdrant client."""
     QdrantClient, _ = _qdrant_imports()
@@ -94,7 +150,7 @@ class QdrantIndexManifest:
 
 
 class QdrantDenseIndex:
-    """Expose row-aligned exact Qdrant search to the hybrid retriever."""
+    """Expose row-aligned server ANN search; local mode remains exact."""
 
     def __init__(
         self,
@@ -129,30 +185,37 @@ class QdrantDenseIndex:
             raise
 
     def _validate(self) -> None:
+        self.validate_collection(
+            self.client,
+            QdrantIndexManifest(
+                collection=self.collection,
+                model=self.model,
+                chunks_sha256=self.chunks_sha256,
+                row_count=self.row_count,
+                dimensions=self.dimensions,
+            ),
+        )
+
+    @staticmethod
+    def validate_collection(client, manifest: QdrantIndexManifest) -> None:
         _, models = _qdrant_imports()
-        if not self.client.collection_exists(self.collection):
+        if not client.collection_exists(manifest.collection):
             raise FileNotFoundError(
-                f"Qdrant collection {self.collection!r} does not exist. Run "
+                f"Qdrant collection {manifest.collection!r} does not exist. Run "
                 "`python scripts/migrate_policy_vectors_to_qdrant.py`."
             )
-        info = self.client.get_collection(self.collection)
+        info = client.get_collection(manifest.collection)
         vectors = info.config.params.vectors
         if not isinstance(vectors, models.VectorParams):
             raise ValueError("Policy collection must use one unnamed dense vector")
-        if vectors.size != self.dimensions:
+        if vectors.size != manifest.dimensions:
             raise ValueError(
-                f"Qdrant vector size {vectors.size} does not match {self.dimensions}"
+                f"Qdrant vector size {vectors.size} does not match {manifest.dimensions}"
             )
         if vectors.distance != models.Distance.DOT:
             raise ValueError("Policy collection must use Dot distance")
         metadata = info.config.metadata or {}
-        expected = QdrantIndexManifest(
-            collection=self.collection,
-            model=self.model,
-            chunks_sha256=self.chunks_sha256,
-            row_count=self.row_count,
-            dimensions=self.dimensions,
-        ).metadata()
+        expected = manifest.metadata()
         mismatches = {
             key: (metadata.get(key), value)
             for key, value in expected.items()
@@ -160,16 +223,14 @@ class QdrantDenseIndex:
         }
         if mismatches:
             raise ValueError(f"Qdrant index manifest mismatch: {mismatches}")
-        count = self.client.count(
-            collection_name=self.collection, exact=True
-        ).count
-        if count != self.row_count:
+        count = client.count(collection_name=manifest.collection, exact=True).count
+        if count != manifest.row_count:
             raise ValueError(
-                f"Qdrant point count {count} does not match {self.row_count} chunks"
+                f"Qdrant point count {count} does not match {manifest.row_count} chunks"
             )
 
     def search(
-        self, query_vector: np.ndarray, limit: int
+        self, query_vector: np.ndarray, limit: int, *, exact: bool = False
     ) -> tuple[np.ndarray, list[int]]:
         """Return a dense score array and ranked source rows."""
         _, models = _qdrant_imports()
@@ -181,7 +242,13 @@ class QdrantDenseIndex:
         response = self.client.query_points(
             collection_name=self.collection,
             query=query_vector,
-            search_params=(None if self.local_mode else models.SearchParams(exact=True)),
+            search_params=(
+                None
+                if self.local_mode
+                else models.SearchParams(
+                    exact=exact, hnsw_ef=max(HNSW_EF_SEARCH, limit)
+                )
+            ),
             limit=min(limit, self.row_count),
             with_payload=["row", "chunk_id"],
             with_vectors=False,
@@ -241,6 +308,7 @@ def migrate_numpy_index(
     api_key: str | None = None,
     batch_size: int = 128,
     recreate: bool = False,
+    reuse_existing: bool = False,
 ) -> dict[str, Any]:
     """Import the verified row-aligned NumPy index into Qdrant."""
     _, models = _qdrant_imports()
@@ -274,26 +342,32 @@ def migrate_numpy_index(
         row_count=row_count,
         dimensions=dimensions,
     )
-    client = create_qdrant_client(
-        path=qdrant_path, url=qdrant_url, api_key=api_key
-    )
+    client = create_qdrant_client(path=qdrant_path, url=qdrant_url, api_key=api_key)
     created = False
     try:
         exists = client.collection_exists(collection)
-        if exists and not recreate:
+        if exists and not recreate and not reuse_existing:
             raise FileExistsError(
                 f"Qdrant collection {collection!r} already exists; use --recreate"
             )
-        if exists:
+        if exists and recreate:
             client.delete_collection(collection)
-        client.create_collection(
-            collection_name=collection,
-            vectors_config=models.VectorParams(
-                size=dimensions, distance=models.Distance.DOT
-            ),
-            metadata=manifest.metadata(),
-        )
-        created = True
+            exists = False
+        if exists:
+            # Validate identity/count before any in-place configuration changes.
+            QdrantDenseIndex.validate_collection(client, manifest)
+            if qdrant_url:
+                configure_hnsw(client, collection, wait_seconds=0)
+        else:
+            client.create_collection(
+                collection_name=collection,
+                vectors_config=models.VectorParams(
+                    size=dimensions, distance=models.Distance.DOT
+                ),
+                metadata=manifest.metadata(),
+                **(hnsw_collection_options() if qdrant_url else {}),
+            )
+            created = True
         points = (
             models.PointStruct(
                 id=row,
@@ -302,13 +376,14 @@ def migrate_numpy_index(
             )
             for row in range(row_count)
         )
-        client.upload_points(
-            collection_name=collection,
-            points=points,
-            batch_size=batch_size,
-            parallel=1,
-            wait=True,
-        )
+        if created:
+            client.upload_points(
+                collection_name=collection,
+                points=points,
+                batch_size=batch_size,
+                parallel=1,
+                wait=True,
+            )
         count = client.count(collection_name=collection, exact=True).count
         if count != row_count:
             raise ValueError(f"Uploaded {count} points, expected {row_count}")
@@ -342,6 +417,8 @@ def migrate_numpy_index(
         "location": qdrant_url or str(qdrant_path),
         "migrated_at": datetime.now(UTC).isoformat(),
         "sample_rows_verified": sample_ids,
+        "index_mode": "hnsw" if qdrant_url else "local_exact",
+        "reused_existing": exists,
     }
 
 
@@ -350,5 +427,6 @@ __all__ = [
     "QdrantDenseIndex",
     "QdrantIndexManifest",
     "create_qdrant_client",
+    "configure_hnsw",
     "migrate_numpy_index",
 ]

@@ -1,0 +1,96 @@
+{
+  "schema_version": "decision-scenarios-v1",
+  "provenance": "Agent-authored synthetic decision cases grounded in visible repository KB. Not benchmark trajectories or human-reviewed gold.",
+  "families": [
+    {
+      "id": "checking_open", "document_suffix": "001", "split": "train",
+      "cases": [
+        ["What must I meet to open a personal checking account?", "No individual eligibility has been verified.", "Explain verification, age at least 18, account-count restriction, and no closure for cause in the past six months. Do not claim individual eligibility."],
+        ["I'm 17. Can I open a personal checking account now?", "User states age 17; no contradictory evidence.", "Explain the minimum age is 18 and do not claim the user can open now."],
+        ["A checking account was closed for cause two months ago. Is that permanently disqualifying?", "User reports a closure for cause two months ago.", "Explain the six-month lookback and distinguish a temporary restriction from permanent disqualification. Do not promise eligibility afterward without the other checks."],
+        ["What official account name should be passed when opening a Blue checking account?", "The user asks for naming guidance, not execution.", "Use Blue Account, retaining the full official name. Do not execute or claim an account was opened."]
+      ]
+    },
+    {
+      "id": "savings_open", "document_suffix": "002", "split": "train",
+      "cases": [
+        ["My checking account is ten days old. Can I open personal savings today?", "Checking tenure is ten days; other eligibility is not established.", "Explain the minimum 14-day checking tenure and four more days of waiting, without guaranteeing all other eligibility."],
+        ["If I open savings, must you transfer the deposit immediately?", "The user has not authorized a transfer.", "Explain the customer can decline an immediate transfer and has 30 days to fund the account or it closes. Do not transfer funds."],
+        ["I have no Rho-Bank checking account. Can I open personal savings?", "No active Rho-Bank checking account.", "Explain the active checking prerequisite and 14-day tenure requirement. Do not claim savings was opened."],
+        ["What do you need to check before opening personal savings?", "No live eligibility results available.", "Cover identity verification, active checking, 14-day tenure, savings-count restriction, collections/negative-balance restrictions, and account selection. Do not invent live facts."]
+      ]
+    },
+    {
+      "id": "checking_close", "document_suffix": "005", "split": "train",
+      "cases": [
+        ["My Evergreen Account is 40 days old. What fee and notice apply if I close it?", "Verified account class Evergreen Account; tenure 40 days; execution not requested.", "State the $50 early closure fee and seven-day notice. Do not close the account."],
+        ["My Blue Account is 20 days old with $10. Can I pay the closure fee with another card?", "Verified Blue Account; balance $10; tenure 20 days.", "Explain the $25 fee must come directly from the account, $10 is insufficient, and no alternative payment method is allowed. Mention three-day notice as relevant."],
+        ["My checking account has pending transactions. Can we close it now?", "Live evidence shows pending transactions.", "Explain pending transactions prevent closure; do not claim completion or bypass the check."],
+        ["My Light Blue Account is ten days old. How much is the closure fee and notice?", "Verified Light Blue Account; tenure ten days.", "State $15 early closure fee and zero-day notice; distinguish this from guaranteed closure eligibility."]
+      ]
+    },
+    {
+      "id": "transfer", "document_suffix": "010", "split": "train",
+      "cases": [
+        ["Transfer $25 from my checking to my savings now.", "Fresh verified accounts SYN-CHECK and SYN-SAVE both belong to this verified customer and are OPEN. Checking available funds $100. User authorization is explicit. No transfer already pending. All required preconditions have been checked.", "Propose exactly one transfer from SYN-CHECK to SYN-SAVE for 25. Do not claim success before a result.", {"tool": "transfer_funds_between_bank_accounts_7291", "arguments": {"source_account_id": "SYN-CHECK", "destination_account_id": "SYN-SAVE", "amount": 25}}],
+        ["Would transferring $25 from checking to savings be possible?", "Both accounts are OPEN and owned by the verified user; source has $100. No action authorization.", "Explain feasibility subject to authorization; do not transfer on a hypothetical question."],
+        ["Transfer $120 from my checking to savings now.", "Fresh verified checking available funds $100. Both accounts OPEN and owned by the user.", "Explain insufficient funds and offer a smaller amount or different verified source. Do not execute $120."],
+        ["Did my transfer go through?", "The previous transfer request timed out. Its mutation status is UNKNOWN; no posted-transfer evidence is available.", "State completion is not confirmed and verification is needed. Never assert failure or success, and never repeat the mutation blindly."]
+      ]
+    },
+    {
+      "id": "checking_credit", "document_suffix": "017", "split": "train",
+      "cases": [
+        ["Can you give my savings account a checking fee-refund credit?", "Account type is savings, not checking.", "Explain this checking credit procedure cannot be applied to savings. Do not apply or claim a credit."],
+        ["You found two incorrect fees of $5 and $7 on the same checking account. Should you refund them separately?", "Both discrepancies verified; no prior credit this interaction.", "Explain one combined $12 credit using fee_refund, not two separate calls; note one-call restriction."],
+        ["Apply the verified $12 fee correction now.", "Fresh verified customer and checking account SYN-CHECK ownership. Net overcharge $12 proven against fee policy and transactions. No prior credit this interaction or during the past 14 days. All prerequisites checked; explicit authorization.", "Propose exactly one $12 fee_refund credit to SYN-CHECK without claiming completion.", {"tool": "apply_checking_account_credit_5829", "arguments": {"account_id": "SYN-CHECK", "amount": 12, "credit_type": "fee_refund"}}],
+        ["I received a checking credit yesterday. Can you add another today?", "Same account received a confirmed credit yesterday.", "Explain the 14-day cooldown and do not apply another credit today."]
+      ]
+    },
+    {
+      "id": "transaction_history", "document_suffix": "018", "split": "train",
+      "cases": [
+        ["Show the transactions on my checking account.", "Customer identity and ownership freshly verified; checking account_id SYN-CHECK. Read access allowed.", "Call the transaction-history read tool with SYN-CHECK; do not invent transactions.", {"tool": "get_bank_account_transactions_9173", "arguments": {"account_id": "SYN-CHECK"}}],
+        ["Does a negative transaction amount mean money came in?", "Question concerns field interpretation only.", "Explain negative amounts are debits/money out, positive amounts are credits/money in."],
+        ["Are the returned transactions oldest first?", "Question concerns ordering only.", "Explain reverse chronological ordering: most recent first."],
+        ["Please inspect my savings transaction history.", "Verified customer owns savings account_id SYN-SAVE. Read access allowed.", "Use the same bank-account transaction-history tool with SYN-SAVE; do not treat it as checking-only.", {"tool": "get_bank_account_transactions_9173", "arguments": {"account_id": "SYN-SAVE"}}]
+      ]
+    },
+    {
+      "id": "freeze", "document_suffix": "026", "split": "validation",
+      "cases": [
+        ["Temporarily freeze my misplaced card now; I am still looking for it.", "Verified owner; card SYN-CARD is ACTIVE. Reason is misplaced. Required freeze effects have already been explained and acknowledged; explicit authorization.", "Call freeze, not permanent closure, with SYN-CARD; no premature success claim.", {"tool": "freeze_debit_card_3892", "arguments": {"card_id": "SYN-CARD"}}],
+        ["Does freezing stop subscriptions and already-authorized pending payments?", "Question concerns effects; no action requested.", "Explain recurring payments are declined while already-authorized pending transactions may still process."],
+        ["Will a normal card freeze also disable ATM access?", "Question concerns scope only.", "Explain normal freezing does not affect ATM access with the PIN; ATM Block is separately enabled through the mobile app."],
+        ["Can you unfreeze my card while its linked checking account is closed?", "Card is FROZEN; linked checking is CLOSED.", "Explain the linked checking must be OPEN. Do not unfreeze or claim activation."]
+      ]
+    },
+    {
+      "id": "pin", "document_suffix": "027", "split": "validation",
+      "cases": [
+        ["I forgot my PIN. What is needed to reset it?", "No PIN or last-four digits provided.", "Explain identity/ownership and ACTIVE status checks, last four digits and a valid new four-digit PIN. Distinguish reset from change requiring the current PIN; do not invent sensitive values."],
+        ["Can I change the PIN while the card is frozen?", "Verified card status FROZEN.", "Explain the card must be ACTIVE and must be unfrozen first; do not claim PIN changed."],
+        ["Is 1111 an acceptable new PIN?", "Question concerns PIN rules only.", "Reject the all-identical-digit PIN without executing any operation."],
+        ["Will you read my existing PIN back to me?", "No disclosure authorization can override the policy.", "Do not disclose or invent a PIN; explain PINs are never displayed or read back, and offer the reset/change process."]
+      ]
+    },
+    {
+      "id": "card_close", "document_suffix": "025", "split": "test",
+      "cases": [
+        ["My card was issued five days ago and I no longer need it. Can I cancel it today?", "No security exception; issued five days ago. No other restrictions.", "Explain the normal 14-day age requirement and nine more days of waiting. Do not permanently refuse future closure or claim closure."],
+        ["My card was stolen. Cancel it now even though it is only five days old.", "Verified owner; SYN-CARD ACTIVE; no pending transactions or refunds. Reason stolen; explicit authorization. All other closure checks complete.", "Apply the security age exception and propose closure with reason stolen. Do not block solely on age or claim completion.", {"tool": "close_debit_card_4721", "arguments": {"card_id": "SYN-CARD", "reason": "stolen"}}],
+        ["Can my cancelled card be reactivated?", "Tool evidence confirms the card is CLOSED.", "Explain closure is permanent and cannot be reversed; a new card is needed."],
+        ["My card has a pending refund. Must I always wait before cancelling?", "No written acknowledgment has yet been provided.", "Explain waiting for the refund, typically three to five business days, OR written acknowledgment that it goes to linked checking. Do not invent acknowledgment or claim closure."]
+      ]
+    },
+    {
+      "id": "card_lookup", "document_suffix": "028", "split": "test",
+      "cases": [
+        ["Look up the debit cards on my checking account.", "Fresh identity and ownership verified; checking account_id SYN-CHECK. Read allowed.", "Call debit-card lookup with SYN-CHECK, not a credit-card tool.", {"tool": "get_debit_cards_by_account_id_7823", "arguments": {"account_id": "SYN-CHECK"}}],
+        ["The lookup returned an empty list. Does that prove my whole bank account is closed?", "Tool result is an empty debit-card list for the specified checking account.", "Explain only that no debit cards were returned; do not infer the bank account is closed."],
+        ["Can this lookup show my entire debit card number?", "Question concerns returned fields only.", "Explain it returns only the last four digits, not a full card number. Do not invent or expose a full number."],
+        ["The lookup returned an old closed card and a current active one. Are both active?", "Tool result explicitly marks SYN-OLD CLOSED and SYN-CARD ACTIVE.", "Distinguish historical closed records from the active card; do not merge statuses across cards."]
+      ]
+    }
+  ]
+}

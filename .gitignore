@@ -234,5 +234,10 @@ data/simulations/.credentials/
 # PolicyPilot local long-term memory
 data/policypilot_memory/
 data/policypilot_checkpoints/
+data/storage/
+.env.services
+.env.storage
+.env.storage.pending
+.env.observability
 .pytest-tmp-*/
 .codex_pytest_tmp/

@@ -33,6 +33,7 @@ from policypilot.workflow.context import (
 from tau2.agent.base_agent import ValidAgentInputMessage
 from tau2.data_model.message import AssistantMessage, Message, ToolCall, ToolMessage
 from tau2.environment.tool import Tool
+from tau2.utils.telemetry import instrument_node, observe
 
 
 class PolicyPilotGraphState(TypedDict, total=False):
@@ -142,7 +143,7 @@ class PolicyPilotWorkflow:
             "guard_recover",
             "finalize",
         ):
-            graph.add_node(name, getattr(self, name))
+            graph.add_node(name, instrument_node(getattr(self, name), name))
         graph.add_edge(START, "ingest")
         graph.add_conditional_edges(
             "ingest",
@@ -200,6 +201,19 @@ class PolicyPilotWorkflow:
     def invoke(
         self, observation: ValidAgentInputMessage, policy_state: PolicyPilotState
     ) -> PolicyPilotGraphState:
+        with observe(
+            "agent.turn",
+            "agent",
+            metadata={
+                "run_id": policy_state.run_id,
+                "task_id": policy_state.task_id or "",
+                "turn": len(policy_state.messages),
+            },
+            session_id=policy_state.task_id or policy_state.run_id,
+        ):
+            return self._invoke(observation, policy_state)
+
+    def _invoke(self, observation, policy_state):
         return cast(
             PolicyPilotGraphState,
             self.compiled.invoke(
