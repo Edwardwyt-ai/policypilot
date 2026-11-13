@@ -40,6 +40,7 @@ class SemanticPlan(BaseModel):
     fact_candidates: list[FactCandidate] = Field(default_factory=list, max_length=4)
     need_candidates: list[NeedCandidate] = Field(default_factory=list, max_length=6)
     subgoal_delta: str | None = Field(default=None, max_length=240)
+    request_skill_retrieval: bool = False
     explicit_action_request: bool = False
     intent_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     model_route: Literal["DETERMINISTIC", "LIGHT"] = "LIGHT"

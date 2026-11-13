@@ -211,6 +211,8 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
             ),
             max_references_per_skill=self.config.max_skill_references_per_skill,
             max_trace_events=self.config.max_skill_trace_events,
+            embedder=(OllamaEpisodeEmbedder(timeout_seconds=3, fallback=LocalEpisodeEmbedder())
+                      if os.getenv("POLICYPILOT_SKILL_DENSE") == "1" else None),
         )
 
         configure_retrieval_cache(
@@ -229,7 +231,7 @@ class PolicyPilotAgent(LLMConfigMixin, HalfDuplexAgent[PolicyPilotState]):
 
         self.policy_engine = PassthroughPolicyEngine()
         self.memory: MemoryService | None = None
-        if self.config.memory_enabled:
+        if self.config.memory_enabled and os.getenv("POLICYPILOT_SKILL_EVAL") != "1":
             store = memory_store or (
                 SqlMemoryStore(
                     database,

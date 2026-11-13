@@ -207,6 +207,7 @@ def observe(
             host.skills.refresh(state, event=skill_event)
         planner_called = False
         planner_succeeded = False
+        planner_requested_skill = False
         if host.config.semantic_planner_enabled and trigger_reason:
             planner_called = True
             trace_start = len(host.llm_runtime.traces)
@@ -225,6 +226,7 @@ def observe(
                     or semantic_plan.explicit_action_request
                 )
                 planner_succeeded = True
+                planner_requested_skill = semantic_plan.request_skill_retrieval
             except Exception as exc:
                 state.add_error(
                     PolicyPilotErrorType.LLM_TRANSIENT,
@@ -271,6 +273,10 @@ def observe(
         candidates = host.acquisition_planner.plan(state, candidates, turn=turn)
         host.need_registry.register_many(state, candidates, turn=turn)
         resolve_user_needs(state)
+        if host.config.skills_enabled and host.skills.loader.release.skills:
+            event = "PLANNER_REQUEST" if planner_requested_skill else skill_event or "TASK_STATE_CHANGED"
+            host.skills.refresh(state, event=event,
+                                recovery_mode=host.skills.last_recovery_mode)
         for need in state.open_needs():
             host.source_resolver.resolve(need)
         host.need_resolver.resolve(state)

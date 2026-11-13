@@ -10,6 +10,7 @@ from policypilot.skills.models import (
     SkillReference,
     SkillTraceEvent,
 )
+from policypilot.skills.retrieval import eligible, rank_skills
 from policypilot.state import PolicyPilotState
 
 
@@ -21,12 +22,17 @@ class SkillRuntime:
         *,
         max_references_per_skill: int = 2,
         max_trace_events: int = 80,
+        embedder=None,
     ):
         self.loader = loader or SkillLoader()
         self.matcher = matcher or SkillMatcher()
         self.max_references_per_skill = max_references_per_skill
         self.max_trace_events = max_trace_events
         self.selected: list[str] = []
+        self.embedder = embedder
+        self._last_route_key = None
+        self.activated_versions: dict[str, str] = {}
+        self.retrieved_versions: dict[str, str] = {}
         self.last_recovery_mode: str | None = None
         self.trace_events: list[SkillTraceEvent] = []
 
@@ -37,16 +43,80 @@ class SkillRuntime:
         event: str,
         recovery_mode: str | None = None,
     ) -> None:
+        release = self.loader.release
+        specs = {name: item.spec for name, item in release.skills.items()}
+        allowed = {
+            name for name, spec in specs.items() if eligible(spec, state, recovery_mode)
+        }
+        route_key = (
+            state.goal.objective,
+            state.goal.target,
+            state.goal.comparative,
+            tuple((c.aspect, c.value, c.hard) for c in state.goal.criteria),
+            state.intent,
+            tuple(sorted(allowed)),
+            recovery_mode,
+            tuple(sorted((n.source, n.aspect, n.critical) for n in state.open_needs())),
+            tuple(
+                sorted(
+                    e.category for e in state.control.error_records if not e.resolved
+                )
+            ),
+            state.control.retrieval_miss_count,
+            bool(state.identity_mismatches),
+        )
+        if (
+            self.loader.release.skills
+            and route_key == self._last_route_key
+            and event != "PLANNER_REQUEST"
+        ):
+            return
+        self._last_route_key = route_key
         previous = tuple(self.selected)
+        metadata = {item.name: item for item in self.loader.metadata()}
         selected = self.matcher.match(
             state,
-            self.loader.metadata(),
+            [item for name, item in metadata.items() if name not in specs],
             event=event,
             recovery_mode=recovery_mode,
         )
+        for name in selected:
+            self.retrieved_versions[name] = metadata[name].version
+        if allowed and self.matcher.max_active_skills > 0:
+            query = " ".join(
+                filter(
+                    None,
+                    (
+                        state.goal.objective,
+                        state.goal.target,
+                        state.intent,
+                        recovery_mode,
+                    ),
+                )
+            )
+            ranked = rank_skills(
+                query,
+                [metadata[name] for name in sorted(allowed)],
+                self.matcher.max_active_skills,
+                self.embedder,
+            )
+            for item in ranked:
+                self.retrieved_versions[item.name] = item.version
+                self._trace(
+                    SkillTraceEvent(
+                        "skill_retrieved", item.name, item.version, reason=event
+                    )
+                )
+            selected = ([item.name for item in ranked] + selected)[
+                : self.matcher.max_active_skills
+            ]
         self.selected = selected
+        state.control.active_skill_versions = {
+            name: metadata[name].version
+            for name in selected
+            if self.activated_versions.get(name) == metadata[name].version
+        }
         self.last_recovery_mode = recovery_mode
-        metadata = {item.name: item for item in self.loader.metadata()}
         for skill_id in selected:
             item = metadata[skill_id]
             self._trace(
@@ -77,6 +147,10 @@ class SkillRuntime:
         contexts: list[SkillGuidanceContext] = []
         used_chars = 0
         for skill_id in self.selected:
+            spec = self.loader.release.skills.get(skill_id)
+            if spec and not eligible(spec.spec, state, self.last_recovery_mode):
+                state.control.active_skill_versions.pop(skill_id, None)
+                continue
             artifact = self.loader.load(skill_id)
             if artifact is None or phase not in artifact.metadata.phases:
                 continue
@@ -146,6 +220,8 @@ class SkillRuntime:
                 )
                 continue
             contexts.append(context)
+            state.control.active_skill_versions[skill_id] = artifact.metadata.version
+            self.activated_versions[skill_id] = artifact.metadata.version
             used_chars += rendered_size
             self._trace(
                 SkillTraceEvent(
@@ -181,6 +257,10 @@ class SkillRuntime:
     def snapshot(self) -> dict[str, object]:
         metadata = {item.name: item for item in self.loader.metadata()}
         return {
+            "release_id": self.loader.release.id,
+            "evaluation_candidate": self.loader.evaluation_candidate,
+            "activated_versions": self.activated_versions.copy(),
+            "retrieved_versions": self.retrieved_versions.copy(),
             "selected_skills": [
                 {"skill_id": skill_id, "version": metadata[skill_id].version}
                 for skill_id in self.selected

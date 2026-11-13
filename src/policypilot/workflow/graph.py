@@ -455,6 +455,9 @@ class PolicyPilotWorkflow:
             )
 
     def _build_context(self, gs, state, rehydrated):
+        if self.host.config.skills_enabled and self.host.skills.loader.release.skills:
+            self.host.skills.refresh(state, event="TASK_STATE_CHANGED",
+                                     recovery_mode=self.host.skills.last_recovery_mode)
         context = build_agent_context(
             state,
             self.host._decision_tools(state),

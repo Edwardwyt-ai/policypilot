@@ -28,6 +28,7 @@ LLMNode = Literal[
     "profile_extractor",
     "episode_extractor",
     "skill_matcher",
+    "skill_evolution",
     "context_compressor",
     "decision",
 ]
@@ -92,6 +93,7 @@ class LLMRuntime:
             "profile_extractor": 300,
             "episode_extractor": 600,
             "skill_matcher": 120,
+            "skill_evolution": 1600,
             "context_compressor": 600,
         }
         default_lightweight_max_tokens.update(lightweight_max_tokens or {})

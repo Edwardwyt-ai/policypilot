@@ -315,6 +315,7 @@ class MutationRecord(BaseModel):
         return self.operation_fingerprint
 
 class ControlState(BaseModel):
+    active_skill_versions: dict[str, str] = Field(default_factory=dict)
     step_count: int = 0
     tool_call_count: int = 0
     error_count: int = 0

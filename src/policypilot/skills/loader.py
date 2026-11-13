@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from policypilot.skills.library import CONSTRAINTS, Release, SkillLibrary, preview
 from policypilot.skills.models import (
     LoadedSkillReference,
     SkillArtifact,
@@ -40,13 +41,35 @@ def _frontmatter_values(lines: list[str]) -> dict[str, str]:
 class SkillLoader:
     """Read only frontmatter for discovery; load bodies after selection."""
 
-    def __init__(self, root: Path | None = None):
+    def __init__(self, root: Path | None = None, *, release: Release | None = None):
+        import os
+
+        library = (
+            SkillLibrary.configured() if root is None and release is None else None
+        )
+        self.release = (
+            release
+            if release is not None
+            else (library.active() if library else Release())
+        )
+        self.evaluation_candidate = (
+            os.getenv("POLICYPILOT_SKILL_EVAL_CANDIDATE")
+            if library and os.getenv("POLICYPILOT_SKILL_EVAL") == "1"
+            else None
+        )
         self.root = (root or Path(__file__).resolve().parents[3] / "skills").resolve()
         self._metadata: dict[str, SkillMetadata] | None = None
         self._artifacts: dict[str, SkillArtifact] = {}
         self._reference_contents: dict[tuple[str, str], LoadedSkillReference] = {}
 
-    def metadata(self) -> list[SkillMetadata]:
+        if self.evaluation_candidate:
+            self.release = preview(
+                self.release,
+                library.candidate(self.evaluation_candidate),
+                {item.name for item in self.base_metadata()},
+            )
+
+    def base_metadata(self) -> list[SkillMetadata]:
         if self._metadata is None:
             discovered: dict[str, SkillMetadata] = {}
             if self.root.exists():
@@ -59,12 +82,46 @@ class SkillLoader:
             self._metadata.values(), key=lambda item: (-item.priority, item.name)
         )
 
+    def metadata(self) -> list[SkillMetadata]:
+        items = {
+            item.name: item
+            for item in self.base_metadata()
+            if item.name not in self.release.retired
+        }
+        for name, published in self.release.skills.items():
+            spec = published.spec
+            items[name] = SkillMetadata(
+                name=name,
+                description=spec.description,
+                path=self.root,
+                version=published.version,
+                tags=tuple(spec.trigger.targets),
+            )
+        return sorted(items.values(), key=lambda item: (-item.priority, item.name))
+
     def load(self, name: str) -> SkillArtifact | None:
         if name in self._artifacts:
             return self._artifacts[name]
         metadata = next((item for item in self.metadata() if item.name == name), None)
         if metadata is None:
             return None
+        if published := self.release.skills.get(name):
+            guidance = (
+                CONSTRAINTS
+                + "\n\n"
+                + "\n".join(f"- {step}" for step in published.spec.procedure)
+            )
+            return SkillArtifact(
+                metadata=metadata,
+                sections={
+                    heading: guidance
+                    for heading in (
+                        "Planning Guidance",
+                        "Decision Guidance",
+                        "Recovery Guidance",
+                    )
+                },
+            )
         _, body = self._read(metadata.path, body=True)
         artifact = SkillArtifact(
             metadata=metadata,

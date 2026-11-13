@@ -21,6 +21,12 @@ checkpoint. Every entry must record:
 Never mark a version verified or evaluated unless the commands were actually run
 and their results were recorded.
 
+## Unreleased - Self-Evolving Skills
+
+Added incremental procedural experience extraction and clustering, state-aware Skill routing,
+versioned candidates and a promotion gate over paired benchmark artifacts. Runtime activation
+uses the existing Skill and tool safety boundaries. Verified with focused offline tests only.
+
 ## Unreleased - Judge Semantic Repair, Calibration and Incomplete GEPA Reruns
 
 - Date: 2026-10-23. Parent: GEPA Preflight Hardening and Failed Judge Calibration.

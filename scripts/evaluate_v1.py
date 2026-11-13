@@ -153,6 +153,10 @@ def main() -> None:
 
     config_record = {
         "schema_version": 1,
+        "skill_eval": os.getenv("POLICYPILOT_SKILL_EVAL") == "1",
+        "skill_dense": os.getenv("POLICYPILOT_SKILL_DENSE") == "1",
+        "builtin_skill_sha256": _sha256_tree(ROOT / "skills"),
+        "python_hash_seed": os.getenv("PYTHONHASHSEED"),
         "created_at": datetime.now(UTC).isoformat(),
         "domain": DOMAIN,
         "agent": "policypilot",

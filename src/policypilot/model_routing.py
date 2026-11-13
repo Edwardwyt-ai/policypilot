@@ -27,6 +27,7 @@ class ModelRouting:
             "profile_extractor": self.light_model,
             "episode_extractor": self.light_model,
             "skill_matcher": self.light_model,
+            "skill_evolution": self.light_model,
             "context_compressor": self.light_model,
             "decision": self.main_model,
         }
